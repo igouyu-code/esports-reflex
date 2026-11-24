@@ -188,9 +188,10 @@ async function setupPeerPhone(){
   if(!/^\d{6}$/.test($('phoneCode').textContent)) { const code=randomCode(); $('phoneCode').textContent=code; $('startPhoneCode').textContent=code; }
   const code=$('phoneCode').textContent;
   const id='reflex-'+code; peer=new Peer(id);
-  peer.on('open',id=>{ const code=id.replace('reflex-',''); $('phoneCode').textContent=code; $('startPhoneCode').textContent=code; $('trackingStatus').textContent='PCモニターにこの6桁コードを入力してください';});
-  peer.on('connection',c=>{conn=c;conn.on('open',()=>{send({type:'hello',duration:GAME_DURATION});$('trackingStatus').textContent='PC接続済み・MediaPipe追跡中'});conn.on('data',handlePhoneCommand);conn.on('close',()=>{$('trackingStatus').textContent='PC接続が切れました'});});
-  peer.on('error',e=>console.warn(e));
+  peer.on('open',id=>{ const code=id.replace('reflex-',''); $('phoneCode').textContent=code; $('startPhoneCode').textContent=code; $('trackingStatus').textContent='接続準備完了：PCに6桁コードを入力してください';});
+  peer.on('connection',c=>{conn=c;conn.on('open',()=>{send({type:'hello',duration:GAME_DURATION});$('trackingStatus').textContent='PC接続済み・MediaPipe追跡中'});conn.on('data',handlePhoneCommand);conn.on('close',()=>{$('trackingStatus').textContent='PC接続が切れました。PC側から再接続してください。'});conn.on('error',e=>{$('trackingStatus').textContent='通信エラー：'+(e.type||e.message||'unknown')});});
+  peer.on('error',e=>{$('trackingStatus').textContent='スマホ接続準備エラー：'+(e.type||e.message||'unknown')+'。ページを再読み込みしてください。';console.error('Phone PeerJS error',e);});
+  peer.on('disconnected',()=>{$('trackingStatus').textContent='PeerJSサーバーから切断されました。ページを再読み込みしてください。'});
 }
 function handlePhoneCommand(m){
   if(m&&m.type==='pcHit'){if(gameRunning){tapAttempts++;hitTarget();send({type:'tapStats',attempts:tapAttempts,success:score,miss:missTaps,accuracy:tapAttempts?score/tapAttempts:0});}return;}
@@ -209,9 +210,19 @@ function setupPeerMonitor(){
   const code=prompt('スマホに表示されている6桁コードを入力してください');
   if(!code||!/^\d{6}$/.test(code)){ $('monitorStatus').textContent='6桁コードが必要です'; return }
   $('monitorCode').textContent=code;
+  $('monitorStatus').textContent='PeerJSサーバーに接続中…';
   peer=new Peer();
-  peer.on('open',()=>{conn=peer.connect('reflex-'+code);conn.on('open',()=>{$('monitorStatus').textContent='接続しました。スマホ側でゲームを開始してください。'});conn.on('data',handleMonitorData);conn.on('close',()=>{$('monitorStatus').textContent='接続が切れました'});});
-  peer.on('error',e=>{$('monitorStatus').textContent='接続エラー: '+e.type});
+  peer.on('open',()=>{
+    $('monitorStatus').textContent='スマホ（'+code+'）を呼び出し中…';
+    conn=peer.connect('reflex-'+code,{reliable:true});
+    conn.on('open',()=>{$('monitorStatus').textContent='接続しました。スマホ側でゲームを開始してください。'});
+    conn.on('data',handleMonitorData);
+    conn.on('close',()=>{$('monitorStatus').textContent='接続が切れました。両方の画面を再読み込みしてください。'});
+    conn.on('error',e=>{$('monitorStatus').textContent='スマホ接続エラー：'+(e.type||e.message||'unknown')+'。スマホ側の接続状態を確認してください。';console.error('Monitor DataConnection error',e);});
+    setTimeout(()=>{if(conn&&!conn.open)$('monitorStatus').textContent='接続できません。スマホ側の表示を確認してください（PeerJS ID：reflex-'+code+'）。';},12000);
+  });
+  peer.on('error',e=>{$('monitorStatus').textContent='PC側PeerJSエラー：'+(e.type||e.message||'unknown');console.error('Monitor PeerJS error',e);});
+  peer.on('disconnected',()=>{$('monitorStatus').textContent='PCがPeerJSサーバーから切断されました。ページを再読み込みしてください。'});
 }
 function monitorMouseHit(e){e.preventDefault();e.stopPropagation();if(!monitorTarget||monitorTarget.style.display==='none')return;send({type:'pcHit'});}
 monitorTarget.addEventListener('pointerdown',monitorMouseHit);
