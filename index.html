@@ -115,7 +115,7 @@ body.phone-mode #result{max-height:calc(100dvh - 28px);overflow:auto}
 <div id="cameraPanel" class="hidden"><div class="camera-wrap"><video id="camera" autoplay playsinline muted></video><canvas id="cameraCanvas"></canvas></div><div class="camera-label">カメラ・親指追跡</div><div id="codeBox" style="margin:10px 0;padding:12px;border-radius:12px;background:#171b22;border:2px solid #00d9ff;text-align:center"><div style="font-size:13px;color:#aaa">PCモニター接続用 6桁コード</div><div id="phoneCode" style="font-size:32px;font-weight:800;letter-spacing:6px;color:#00d9ff">------</div><div style="font-size:12px;color:#aaa;margin-top:4px">この数字をPCモニターに入力してください</div></div><div id="trackingStatus" class="tracking-status">準備中</div></div>
 
 <div id="monitorPanel" class="hidden">
-  <div class="panel"><h2>PCモニター接続</h2><div class="small">スマホのカメラを使ってMediaPipeで親指の位置を取得し、ゲーム中の親指軌跡を記録します。</div><div>スマホ画面に表示されたコード：</div><div id="monitorCode" class="code">------</div><div id="monitorStatus" class="status">接続待ち</div><button id="pcDownloadButton" class="hidden" style="margin-top:10px">PCで実験データを保存（CSV）</button><button id="monitorBack" class="secondary">戻る</button></div>
+  <div class="panel"><h2>PCモニター接続</h2><div class="small">スマホのカメラを使ってMediaPipeで親指の位置を取得し、ゲーム中の親指軌跡を記録します。</div><div>スマホ画面に表示されたコード：</div><div id="monitorCode" class="code">------</div><div style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0"><input id="pcConnectCode" inputmode="numeric" maxlength="6" placeholder="6桁コード" style="width:150px;padding:10px;border-radius:9px;border:1px solid #555;background:#171a1f;color:#fff;font-size:18px;letter-spacing:3px"><button id="pcConnectButton">接続・再接続</button></div><div id="monitorStatus" class="status">スマホの6桁コードを入力してください</div><button id="pcDownloadButton" class="hidden" style="margin-top:10px">PCで実験データを保存（CSV）</button><button id="monitorBack" class="secondary">戻る</button></div>
   <div class="panel" id="calibrationPanel" style="margin-top:14px">
     <h2>親指座標のキャリブレーション</h2>
     <div class="small">スマホ画面の指定位置に親指を置き、その位置を保ったままPCの対応する「記録」ボタンを押してください。3点からカメラ座標→ゲーム画面座標のアフィン変換を求めます。カメラに親指が認識されている必要があります。</div>
@@ -178,23 +178,59 @@ function randomCode(){return String(Math.floor(100000+Math.random()*900000))}
 
 function resetGameView(){startCard.classList.remove('hidden');resultCard.classList.add('hidden');target.style.display='none';questionnaire.style.display='flex'}
 
-$('phoneMode').addEventListener('click',async()=>{mode='phone';document.documentElement.classList.add('phone-mode');document.body.classList.add('phone-mode');modeSelect.classList.add('hidden');$('top').classList.add('hidden');$('game').classList.remove('hidden');questionnaire.style.display='flex';cameraPanel.classList.remove('hidden');const code=randomCode();$('phoneCode').textContent=code;$('startPhoneCode').textContent=code;$('trackingStatus').textContent='この6桁コードをPCモニターに入力してください';await setupPeerPhone();await setupCamera();});
+$('phoneMode').addEventListener('click',async()=>{mode='phone';document.documentElement.classList.add('phone-mode');document.body.classList.add('phone-mode');modeSelect.classList.add('hidden');$('top').classList.add('hidden');$('game').classList.remove('hidden');questionnaire.style.display='flex';cameraPanel.classList.remove('hidden');const code=randomCode();$('phoneCode').textContent=code;$('startPhoneCode').textContent=code;$('trackingStatus').textContent='接続サーバーへ登録中…';await setupPeerPhone();await setupCamera();});
 $('pcMode').addEventListener('click',async()=>{mode='pc';modeSelect.classList.add('hidden');$('top').classList.add('hidden');$('game').classList.add('hidden');$('hint').classList.add('hidden');monitorPanel.classList.remove('hidden');setupPeerMonitor();await setupPcCamera();});
 $('monitorBack').addEventListener('click',()=>location.reload());
 
-async function setupPeerPhone(){
-  const displayedCode=$('phoneCode').textContent;
-  if(!window.Peer){$('trackingStatus').textContent='6桁コードは表示中（PC接続機能のみ読み込み失敗）';return}
-  if(!/^\d{6}$/.test($('phoneCode').textContent)) { const code=randomCode(); $('phoneCode').textContent=code; $('startPhoneCode').textContent=code; }
+const PEER_OPTIONS={host:'0.peerjs.com',port:443,path:'/',secure:true,debug:2,config:{iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:global.stun.twilio.com:3478'}]}};
+let peerRole=null,peerRetryTimer=null,pcConnectTimer=null,phonePeerStarting=false;
+function setPhoneStatus(t){$('trackingStatus').textContent=t;}
+function setPcStatus(t){$('monitorStatus').textContent=t;}
+function closePeerObjects(){
+  if(peerRetryTimer){clearTimeout(peerRetryTimer);peerRetryTimer=null;}
+  if(pcConnectTimer){clearTimeout(pcConnectTimer);pcConnectTimer=null;}
+  try{if(conn){conn.close();}}catch(e){}
+  try{if(peer&&!peer.destroyed)peer.destroy();}catch(e){}
+  conn=null;peer=null;
+}
+async function setupPeerPhone(attempt=0){
+  if(phonePeerStarting)return; phonePeerStarting=true; peerRole='phone';
+  if(!window.Peer){phonePeerStarting=false;setPhoneStatus('通信ライブラリの読み込みに失敗。通信環境を確認して再読み込みしてください');return;}
   const code=$('phoneCode').textContent;
-  const id='reflex-'+code; peer=new Peer(id);
-  peer.on('open',id=>{ const code=id.replace('reflex-',''); $('phoneCode').textContent=code; $('startPhoneCode').textContent=code; $('trackingStatus').textContent='接続準備完了：PCに6桁コードを入力してください';});
-  peer.on('connection',c=>{conn=c;conn.on('open',()=>{send({type:'hello',duration:GAME_DURATION});$('trackingStatus').textContent='PC接続済み・MediaPipe追跡中'});conn.on('data',handlePhoneCommand);conn.on('close',()=>{$('trackingStatus').textContent='PC接続が切れました。PC側から再接続してください。'});conn.on('error',e=>{$('trackingStatus').textContent='通信エラー：'+(e.type||e.message||'unknown')});});
-  peer.on('error',e=>{$('trackingStatus').textContent='スマホ接続準備エラー：'+(e.type||e.message||'unknown')+'。ページを再読み込みしてください。';console.error('Phone PeerJS error',e);});
-  peer.on('disconnected',()=>{$('trackingStatus').textContent='PeerJSサーバーから切断されました。ページを再読み込みしてください。'});
+  if(!/^\d{6}$/.test(code)){phonePeerStarting=false;setPhoneStatus('6桁コードを発行できません');return;}
+  try{if(peer&&!peer.destroyed)peer.destroy();}catch(e){}
+  conn=null;
+  setPhoneStatus('接続サーバーへ登録中…');
+  const p=new Peer('reflex-'+code,PEER_OPTIONS); peer=p;
+  let opened=false;
+  p.on('open',id=>{
+    opened=true;phonePeerStarting=false;
+    const liveCode=id.replace('reflex-','');$('phoneCode').textContent=liveCode;$('startPhoneCode').textContent=liveCode;
+    setPhoneStatus('接続準備完了：PCに表示中の6桁コードを入力してください');
+  });
+  p.on('connection',c=>{
+    if(conn&&conn.open){c.close();return;}
+    conn=c; setPhoneStatus('PCからの接続を確認中…');
+    c.on('open',()=>{c.send({type:'hello',role:'phone',protocol:2,duration:GAME_DURATION});setPhoneStatus('PC接続済み・MediaPipe追跡中');});
+    c.on('data',handlePhoneCommand);
+    c.on('close',()=>{if(conn===c){conn=null;setPhoneStatus('PCとの通信が切れました。PC側で再接続してください');}});
+    c.on('error',e=>setPhoneStatus('通信エラー：'+(e.type||e.message||'不明')));
+  });
+  p.on('error',e=>{
+    phonePeerStarting=false;
+    const typ=e&&e.type?e.type:'unknown';
+    setPhoneStatus('接続準備エラー：'+typ+'。再読み込みまたは再接続をしてください');
+    if(typ==='unavailable-id'&&attempt<4){
+      const next=randomCode();$('phoneCode').textContent=next;$('startPhoneCode').textContent=next;
+      peerRetryTimer=setTimeout(()=>setupPeerPhone(attempt+1),700);
+    }
+  });
+  p.on('disconnected',()=>{setPhoneStatus('接続サーバーから切断。再接続を試しています…');try{p.reconnect();}catch(e){setPhoneStatus('サーバー再接続に失敗。ページを再読み込みしてください');}});
+  p.on('close',()=>{if(!opened)setPhoneStatus('接続サーバーに登録できませんでした');});
 }
 function handlePhoneCommand(m){
   if(m&&m.type==='pcHit'){if(gameRunning){tapAttempts++;hitTarget();send({type:'tapStats',attempts:tapAttempts,success:score,miss:missTaps,accuracy:tapAttempts?score/tapAttempts:0});}return;}
+  if(m&&m.type==='ping'){send({type:'pong',at:m.at,protocol:2});return;}
   if(m&&m.type==='phoneCalibrationAck'){
     if(phoneCalIndex<0||phoneCalDone)return;
     if(Number.isInteger(Number(m.index)) && Number(m.index)!==phoneCalIndex)return;
@@ -202,32 +238,42 @@ function handlePhoneCommand(m){
     if(!m.ok){$('phoneCalStatus').textContent=m.message||'親指を認識できません。位置を調整して、もう一度タップしてください。';return;}
     phoneCalIndex++;
     if(phoneCalIndex>=phoneCalTargets.length){finishPhoneCalibration();return;}
-    showPhoneCalTarget();
-    $('phoneCalStatus').textContent='記録しました。次の位置へ進みます。';
+    showPhoneCalTarget();$('phoneCalStatus').textContent='記録しました。次の位置へ進みます。';
   }
 }
 function setupPeerMonitor(){
-  const code=prompt('スマホに表示されている6桁コードを入力してください');
-  if(!code||!/^\d{6}$/.test(code)){ $('monitorStatus').textContent='6桁コードが必要です'; return }
-  $('monitorCode').textContent=code;
-  $('monitorStatus').textContent='PeerJSサーバーに接続中…';
-  peer=new Peer();
-  peer.on('open',()=>{
-    $('monitorStatus').textContent='スマホ（'+code+'）を呼び出し中…';
-    conn=peer.connect('reflex-'+code,{reliable:true});
-    conn.on('open',()=>{$('monitorStatus').textContent='接続しました。スマホ側でゲームを開始してください。'});
-    conn.on('data',handleMonitorData);
-    conn.on('close',()=>{$('monitorStatus').textContent='接続が切れました。両方の画面を再読み込みしてください。'});
-    conn.on('error',e=>{$('monitorStatus').textContent='スマホ接続エラー：'+(e.type||e.message||'unknown')+'。スマホ側の接続状態を確認してください。';console.error('Monitor DataConnection error',e);});
-    setTimeout(()=>{if(conn&&!conn.open)$('monitorStatus').textContent='接続できません。スマホ側の表示を確認してください（PeerJS ID：reflex-'+code+'）。';},12000);
+  const input=$('pcConnectCode');input.value='';$('monitorCode').textContent='------';
+  setPcStatus('スマホの6桁コードを入力して「接続・再接続」を押してください');
+  $('pcConnectButton').onclick=connectPcToPhone;
+  input.onkeydown=e=>{if(e.key==='Enter')connectPcToPhone();};
+  input.focus();
+}
+function connectPcToPhone(){
+  const code=$('pcConnectCode').value.trim();
+  if(!/^\d{6}$/.test(code)){setPcStatus('6桁の数字を入力してください');return;}
+  if(!window.Peer){setPcStatus('通信ライブラリの読み込みに失敗。ページを再読み込みしてください');return;}
+  closePeerObjects();peerRole='pc';$('monitorCode').textContent=code;setPcStatus('接続サーバーへ接続中…');
+  const p=new Peer(undefined,PEER_OPTIONS);peer=p;
+  let connectionStarted=false;
+  p.on('open',()=>{
+    setPcStatus('スマホ '+code+' を呼び出しています…');
+    const c=p.connect('reflex-'+code,{reliable:true,serialization:'json'});conn=c;connectionStarted=true;
+    c.on('open',()=>{if(pcConnectTimer){clearTimeout(pcConnectTimer);pcConnectTimer=null;}setPcStatus('接続成功：スマホと通信中');c.send({type:'ping',at:Date.now(),protocol:2});});
+    c.on('data',handleMonitorData);
+    c.on('close',()=>{if(conn===c){conn=null;setPcStatus('スマホとの通信が切れました。コードを確認して再接続してください');}});
+    c.on('error',e=>setPcStatus('データ通信エラー：'+(e.type||e.message||'不明')));
+    pcConnectTimer=setTimeout(()=>{if(!c.open)setPcStatus('接続タイムアウト。スマホ側の接続状態と6桁コードを確認し、再接続してください');},15000);
   });
-  peer.on('error',e=>{$('monitorStatus').textContent='PC側PeerJSエラー：'+(e.type||e.message||'unknown');console.error('Monitor PeerJS error',e);});
-  peer.on('disconnected',()=>{$('monitorStatus').textContent='PCがPeerJSサーバーから切断されました。ページを再読み込みしてください。'});
+  p.on('error',e=>setPcStatus('PC側サーバーエラー：'+(e.type||e.message||'不明')));
+  p.on('disconnected',()=>{setPcStatus('PCが接続サーバーから切断。再接続してください');});
+  p.on('close',()=>{if(!connectionStarted)setPcStatus('PCの接続準備が終了しました。再接続してください');});
 }
 function monitorMouseHit(e){e.preventDefault();e.stopPropagation();if(!monitorTarget||monitorTarget.style.display==='none')return;send({type:'pcHit'});}
 monitorTarget.addEventListener('pointerdown',monitorMouseHit);
 monitorTarget.addEventListener('click',monitorMouseHit);
 function handleMonitorData(m){
+  if(m&&m.type==='hello'){setPcStatus('接続成功：スマホと通信中');return;}
+  if(m&&m.type==='pong'){setPcStatus('接続成功：スマホとの双方向通信を確認');return;}
   if(m.type==='phoneCalibrationReady'){
     pcPhoneCalIndex=Number(m.index);
     $('calStatus').textContent='スマホ POINT '+(pcPhoneCalIndex+1)+' 待機中。親指を合わせて記録ボタンを押してください';
