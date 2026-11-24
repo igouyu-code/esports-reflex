@@ -120,9 +120,9 @@ body.phone-mode #result{max-height:calc(100dvh - 28px);overflow:auto}
     <h2>親指座標のキャリブレーション</h2>
     <div class="small">スマホ画面の指定位置に親指を置き、その位置を保ったままPCの対応する「記録」ボタンを押してください。3点からカメラ座標→ゲーム画面座標のアフィン変換を求めます。カメラに親指が認識されている必要があります。</div>
     <div class="monitor-stats" style="margin-top:10px">
-      <div class="monitor-stat"><span>POINT 1</span><b>左下寄り (10%, 90%)</b><button id="calPoint1" class="secondary">記録 1</button></div>
-      <div class="monitor-stat"><span>POINT 2</span><b>左上寄り (10%, 10%)</b><button id="calPoint2" class="secondary">記録 2</button></div>
-      <div class="monitor-stat"><span>POINT 3</span><b>右下寄り (90%, 90%)</b><button id="calPoint3" class="secondary">記録 3</button></div>
+      <div class="monitor-stat"><span>POINT 1</span><b>左上寄り (10%, 10%)</b><button id="calPoint1" class="secondary">記録 1</button></div>
+      <div class="monitor-stat"><span>POINT 2</span><b>右上寄り (90%, 10%)</b><button id="calPoint2" class="secondary">記録 2</button></div>
+      <div class="monitor-stat"><span>POINT 3</span><b>左下寄り (10%, 90%)</b><button id="calPoint3" class="secondary">記録 3</button></div>
       <div class="monitor-stat"><span>STATUS</span><b id="calStatus" style="font-size:13px">未実施</b><button id="calReset" class="secondary">やり直す</button></div>
     </div>
   </div>
@@ -164,10 +164,10 @@ let score=0,reactionTimes=[],records=[],startTime=0,spawnTime=0,gameRunning=fals
 let qData={}; let previousTargetCenter=null;
 let pcExperiment={}; let pcRecords=[]; let pcEvents=[]; let pcTapStats={attempts:0,success:0,miss:0,accuracy:0}; let pcThumbSamples=[]; let pcTarget=null; let pcTargetHistory=[];
 let pcLatestThumb=null, calibrationPoints=[], calibrationTransform=null, pcPhoneThumbSamples=[];
-const calibrationTargets=[{x:.1,y:.9},{x:.1,y:.1},{x:.9,y:.9}];
+const calibrationTargets=[{x:.1,y:.1},{x:.9,y:.1},{x:.1,y:.9}];
 const phoneCalTargets=[{x:.12,y:.84,label:'左下'},{x:.12,y:.16,label:'左上'},{x:.88,y:.84,label:'右下'}];
 let phoneCalIndex=-1,phoneCalWaiting=false,phoneCalDone=false,phoneCalTimeout=null;
-let pcCalibrationStep=0, pcCalibrationActive=false;
+let pcPhoneCalIndex=-1;
 
 
 function avg(){return reactionTimes.length?reactionTimes.reduce((a,b)=>a+b,0)/reactionTimes.length:0}
@@ -194,24 +194,9 @@ async function setupPeerPhone(){
 }
 function handlePhoneCommand(m){
   if(m&&m.type==='pcHit'){if(gameRunning){tapAttempts++;hitTarget();send({type:'tapStats',attempts:tapAttempts,success:score,miss:missTaps,accuracy:tapAttempts?score/tapAttempts:0});}return;}
-  if(m&&m.type==='pcCalibrationAdvance'){
-    if(!phoneCalDone && phoneCalIndex>=0 && Number(m.index)===phoneCalIndex){
-      phoneCalWaiting=false;
-      if(phoneCalTimeout){clearTimeout(phoneCalTimeout);phoneCalTimeout=null;}
-      phoneCalIndex++;
-      if(phoneCalIndex>=phoneCalTargets.length){finishPhoneCalibration();}
-      else { showPhoneCalTarget(); $('phoneCalStatus').textContent='PC側で記録しました。次の位置に進みました。'; }
-    }
-    return;
-  }
-  if(m&&m.type==='pcCalibrationReset'){
-    phoneCalIndex=0;phoneCalWaiting=false;phoneCalDone=false;
-    if(phoneCalTimeout){clearTimeout(phoneCalTimeout);phoneCalTimeout=null;}
-    if(!$('phoneCalibration').classList.contains('hidden'))showPhoneCalTarget();
-    return;
-  }
   if(m&&m.type==='phoneCalibrationAck'){
-    if(!phoneCalWaiting)return;
+    if(phoneCalIndex<0||phoneCalDone)return;
+    if(Number.isInteger(Number(m.index)) && Number(m.index)!==phoneCalIndex)return;
     phoneCalWaiting=false;
     if(!m.ok){$('phoneCalStatus').textContent=m.message||'親指を認識できません。位置を調整して、もう一度タップしてください。';return;}
     phoneCalIndex++;
@@ -232,10 +217,9 @@ function monitorMouseHit(e){e.preventDefault();e.stopPropagation();if(!monitorTa
 monitorTarget.addEventListener('pointerdown',monitorMouseHit);
 monitorTarget.addEventListener('click',monitorMouseHit);
 function handleMonitorData(m){
-  if(m.type==='phoneCalibrationStarted'){
-    calibrationPoints=[];calibrationTransform=null;pcCalibrationStep=0;pcCalibrationActive=true;
-    $('calStatus').textContent='開始待ち：記録 1 を押してください';
-    $('monitorStatus').textContent='スマホ側キャリブレーション開始。親指位置を合わせてPCの記録ボタンを押してください';
+  if(m.type==='phoneCalibrationReady'){
+    pcPhoneCalIndex=Number(m.index);
+    $('calStatus').textContent='スマホ POINT '+(pcPhoneCalIndex+1)+' 待機中。親指を合わせて記録ボタンを押してください';
     return;
   }
   if(m.type==='phoneCalibrationPoint'){
@@ -329,34 +313,19 @@ function solve3(a,b){
   return m.map(row=>row[3]);
 }
 function recordCalibrationPoint(i){
-  if(!conn||!conn.open){$('calStatus').textContent='スマホと接続されていません';return;}
-  if(!pcCalibrationActive){$('calStatus').textContent='先にスマホ側でキャリブレーションを開始してください';return;}
-  if(i!==pcCalibrationStep){$('calStatus').textContent='順番に記録してください（次は記録 '+(pcCalibrationStep+1)+'）';return;}
-  if(!pcLatestThumb){$('calStatus').textContent='親指を認識できません。カメラに親指を映してください';return;}
-  const point={cameraX:pcLatestThumb.x,cameraY:pcLatestThumb.y,targetX:calibrationTargets[i].x,targetY:calibrationTargets[i].y};
-  calibrationPoints[i]=point;
-  if(i===2){
-    try{
-      const a=calibrationPoints.map(p=>[p.cameraX,p.cameraY,1]);
-      const tx=solve3(a,calibrationPoints.map(p=>p.targetX));
-      const ty=solve3(a,calibrationPoints.map(p=>p.targetY));
-      calibrationTransform={x:tx,y:ty};
-    }catch(e){
-      calibrationPoints[i]=null;calibrationTransform=null;
-      $('calStatus').textContent='3点の位置関係が不適切です。親指を別の位置に移して記録3をやり直してください';
-      return;
-    }
-  }
-  pcCalibrationStep++;
-  $('calStatus').textContent=pcCalibrationStep+'/3点を記録。スマホ側が次の位置に進みます';
-  send({type:'pcCalibrationAdvance',index:i});
-  if(pcCalibrationStep===3){
-    $('calStatus').textContent='完了：3点を記録し座標変換を適用中';
-    $('monitorStatus').textContent='スマホ側キャリブレーション完了。実験を開始できます。';
-    pcCalibrationActive=false;
+  if(!pcLatestThumb){$('calStatus').textContent='親指を認識できません';return;}
+  if(!conn||!conn.open){$('calStatus').textContent='スマホとの接続がありません';return;}
+  if(pcPhoneCalIndex!==i){$('calStatus').textContent='スマホ側のPOINT '+(i+1)+'をタップしてから記録してください';return;}
+  calibrationPoints[i]={cameraX:pcLatestThumb.x,cameraY:pcLatestThumb.y,targetX:calibrationTargets[i].x,targetY:calibrationTargets[i].y};
+  $('calStatus').textContent=calibrationPoints.filter(Boolean).length+'/3点を記録';
+  send({type:'phoneCalibrationAck',ok:true,index:i,message:'PC側で記録しました'});
+  pcPhoneCalIndex=-1;
+  if(calibrationPoints.filter(Boolean).length===3){
+    try{const a=calibrationPoints.map(p=>[p.cameraX,p.cameraY,1]);const tx=solve3(a,calibrationPoints.map(p=>p.targetX));const ty=solve3(a,calibrationPoints.map(p=>p.targetY));calibrationTransform={x:tx,y:ty};$('calStatus').textContent='完了：座標変換を適用中';$('monitorStatus').textContent='キャリブレーション完了。実験を開始できます。';}
+    catch(e){calibrationTransform=null;$('calStatus').textContent='失敗：3点を離して再記録';}
   }
 }
-function resetCalibration(){calibrationPoints=[];calibrationTransform=null;pcCalibrationStep=0;pcCalibrationActive=false;send({type:'pcCalibrationReset'});$('calStatus').textContent='未実施。スマホ側でキャリブレーションを開始してください';}
+function resetCalibration(){calibrationPoints=[];calibrationTransform=null;pcPhoneCalIndex=-1;$('calStatus').textContent='未実施';}
 $('calPoint1').addEventListener('click',()=>recordCalibrationPoint(0));
 $('calPoint2').addEventListener('click',()=>recordCalibrationPoint(1));
 $('calPoint3').addEventListener('click',()=>recordCalibrationPoint(2));
@@ -597,14 +566,13 @@ game.addEventListener('pointerdown',checkTap);
 startButton.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();beginPhoneCalibration()});
 $('phoneCalBegin').addEventListener('click',beginPhoneCalibration);
 $('phoneCalCancel').addEventListener('click',()=>{ if(phoneCalTimeout){clearTimeout(phoneCalTimeout);phoneCalTimeout=null;}phoneCalWaiting=false;$('phoneCalibration').classList.add('hidden');startCard.classList.remove('hidden');});
-$('phoneCalTarget').addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();$('phoneCalStatus').textContent='スマホ側はタップ不要です。PC側の「記録 '+(phoneCalIndex+1)+'」を押してください。';});
+$('phoneCalTarget').addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();phoneCalibrationTap(e)});
 
 function beginPhoneCalibration(){
   startCard.classList.add('hidden');
   $('phoneCalibration').classList.remove('hidden');
   if(phoneCalTimeout){clearTimeout(phoneCalTimeout);phoneCalTimeout=null;}
   phoneCalIndex=0;phoneCalWaiting=false;phoneCalDone=false;
-  send({type:'phoneCalibrationStarted'});
   $('phoneCalBegin').classList.add('hidden');
   $('phoneCalCancel').textContent='中止';
   $('phoneCalTitle').textContent='親指位置のキャリブレーション';
@@ -617,34 +585,26 @@ function showPhoneCalTarget(){
   $('phoneCalProgress').textContent=`測定 ${phoneCalIndex+1} / ${phoneCalTargets.length}`;
   $('phoneCalTarget').style.left=(t.x*100)+'%';
   $('phoneCalTarget').style.top=(t.y*100)+'%';
-  $('phoneCalStatus').textContent='スマホ側はこの位置を保ってください。PC側の「記録 '+(phoneCalIndex+1)+'」を押すと次へ進みます。';
+  $('phoneCalStatus').textContent='PC側で親指が認識されていることを確認してからタップしてください。';
   phoneCalWaiting=false;
 }
 function phoneCalibrationTap(e){
   if(phoneCalIndex<0||phoneCalDone||phoneCalWaiting)return;
-  const stage=$('phoneCalStage').getBoundingClientRect();
   const target=$('phoneCalTarget').getBoundingClientRect();
   const cx=target.left+target.width/2,cy=target.top+target.height/2;
-  // Accept only a tap within the pulsing target.
   if(Math.hypot(e.clientX-cx,e.clientY-cy)>Math.max(target.width,target.height)*.65){
     $('phoneCalStatus').textContent='点滅している丸の範囲をタップしてください。';
     return;
   }
   if(!conn||!conn.open){
-    $('phoneCalStatus').textContent='PCモニターが未接続です。PC側で6桁コードを入力して接続してください。';
+    $('phoneCalStatus').textContent='PCモニターが未接続です。PC側で6桁コードを入力してください。';
     return;
   }
   phoneCalWaiting=true;
-  const t=phoneCalTargets[phoneCalIndex];
-  send({type:'phoneCalibrationPoint',index:phoneCalIndex,targetX:t.x,targetY:t.y,label:t.label});
-  $('phoneCalStatus').textContent='PC側の親指認識を確認中…';
-  if(phoneCalTimeout)clearTimeout(phoneCalTimeout);
-  phoneCalTimeout=setTimeout(()=>{
-    if(!phoneCalWaiting)return;
-    phoneCalWaiting=false;phoneCalTimeout=null;
-    $('phoneCalStatus').textContent='PCから応答がありません。同じ位置をもう一度タップしてください。PCの接続とカメラ認識を確認してください。';
-  },5000);
+  send({type:'phoneCalibrationReady',index:phoneCalIndex});
+  $('phoneCalStatus').textContent='PC側で親指を認識した状態で「記録 '+(phoneCalIndex+1)+'」を押してください。';
 }
+
 function finishPhoneCalibration(){
   if(phoneCalTimeout){clearTimeout(phoneCalTimeout);phoneCalTimeout=null;}
   phoneCalWaiting=false;phoneCalDone=true;phoneCalIndex=-1;
