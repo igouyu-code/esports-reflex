@@ -182,10 +182,42 @@ $('phoneMode').addEventListener('click',async()=>{mode='phone';document.document
 $('pcMode').addEventListener('click',async()=>{mode='pc';modeSelect.classList.add('hidden');$('top').classList.add('hidden');$('game').classList.add('hidden');$('hint').classList.add('hidden');monitorPanel.classList.remove('hidden');setupPeerMonitor();await setupPcCamera();});
 $('monitorBack').addEventListener('click',()=>location.reload());
 
-const PEER_OPTIONS={host:'0.peerjs.com',port:443,path:'/',secure:true,debug:2,config:{iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:global.stun.twilio.com:3478'}]}};
+// PeerJS標準ICE設定を使用（Google STUN + PeerJS公式TURN）。独自configで標準TURNを消さない。
+const PEER_OPTIONS={host:'0.peerjs.com',port:443,path:'/',secure:true,debug:2};
 let peerRole=null,peerRetryTimer=null,pcConnectTimer=null,phonePeerStarting=false;
-function setPhoneStatus(t){$('trackingStatus').textContent=t;}
-function setPcStatus(t){$('monitorStatus').textContent=t;}
+function setPhoneStatus(t){$('trackingStatus').textContent=t;diagLog('phone','状態: '+t);}
+function setPcStatus(t){$('monitorStatus').textContent=t;diagLog('pc','状態: '+t);}
+const diagLines={phone:[],pc:[]};
+function diagLog(side,message){
+  const id=side==='phone'?'phonePeerDiag':'pcPeerDiag';
+  let box=$(id);
+  if(!box){
+    const anchor=side==='phone'?$('trackingStatus'):$('monitorStatus');
+    if(!anchor)return;
+    box=document.createElement('pre');box.id=id;
+    box.style.cssText='white-space:pre-wrap;word-break:break-word;text-align:left;font:11px/1.45 monospace;color:#b9c5d3;background:#10151c;border:1px solid #394554;border-radius:8px;padding:8px;margin:8px 0;max-height:180px;overflow:auto;';
+    box.textContent='通信診断ログ（最新12件）';
+    anchor.insertAdjacentElement('afterend',box);
+  }
+  const stamp=new Date().toLocaleTimeString('ja-JP',{hour12:false});
+  diagLines[side].push(stamp+' '+message);
+  if(diagLines[side].length>12)diagLines[side].shift();
+  box.textContent='通信診断ログ（最新12件）\\n'+diagLines[side].join('\\n');
+}
+function describePeerError(e){
+  return 'type='+(e&&e.type||'unknown')+' / message='+(e&&e.message||'詳細なし');
+}
+function watchIceConnection(c,side){
+  const report=()=>{
+    const pc=c&&c.peerConnection;
+    if(!pc){diagLog(side,'WebRTC詳細: peerConnection未生成（接続確立前の可能性）');return;}
+    diagLog(side,'ICE='+pc.iceConnectionState+' / 接続='+pc.connectionState+' / signaling='+pc.signalingState);
+  };
+  const pc=c&&c.peerConnection;
+  if(!pc){diagLog(side,'WebRTC詳細: peerConnectionはまだ未生成');return;}
+  ['iceconnectionstatechange','connectionstatechange','signalingstatechange','icegatheringstatechange'].forEach(ev=>pc.addEventListener(ev,report));
+  report();
+}
 function closePeerObjects(){
   if(peerRetryTimer){clearTimeout(peerRetryTimer);peerRetryTimer=null;}
   if(pcConnectTimer){clearTimeout(pcConnectTimer);pcConnectTimer=null;}
@@ -202,19 +234,20 @@ async function setupPeerPhone(attempt=0){
   conn=null;
   setPhoneStatus('接続サーバーへ登録中…');
   const p=new Peer('reflex-'+code,PEER_OPTIONS); peer=p;
+  diagLog('phone','PeerJSインスタンス作成。ID='+('reflex-'+code)+' / 接続先=0.peerjs.com:443');
   let opened=false;
   p.on('open',id=>{
-    opened=true;phonePeerStarting=false;
+    opened=true;phonePeerStarting=false;diagLog('phone','PeerJSサーバー登録成功。割当ID='+id);
     const liveCode=id.replace('reflex-','');$('phoneCode').textContent=liveCode;$('startPhoneCode').textContent=liveCode;
     setPhoneStatus('接続準備完了：PCに表示中の6桁コードを入力してください');
   });
   p.on('connection',c=>{
     if(conn&&conn.open){c.close();return;}
-    conn=c; setPhoneStatus('PCからの接続を確認中…');
-    c.on('open',()=>{c.send({type:'hello',role:'phone',protocol:2,duration:GAME_DURATION});setPhoneStatus('PC接続済み・MediaPipe追跡中');});
+    conn=c; diagLog('phone','PCからのDataConnection着信。peer='+c.peer); setPhoneStatus('PCからの接続を確認中…');
+    c.on('open',()=>{diagLog('phone','DataConnection open。PCとの通信路が開通');watchIceConnection(c,'phone');c.send({type:'hello',role:'phone',protocol:2,duration:GAME_DURATION});setPhoneStatus('PC接続済み・MediaPipe追跡中');});
     c.on('data',handlePhoneCommand);
-    c.on('close',()=>{if(conn===c){conn=null;setPhoneStatus('PCとの通信が切れました。PC側で再接続してください');}});
-    c.on('error',e=>setPhoneStatus('通信エラー：'+(e.type||e.message||'不明')));
+    c.on('close',()=>{diagLog('phone','DataConnection close');if(conn===c){conn=null;setPhoneStatus('PCとの通信が切れました。PC側で再接続してください');}});
+    c.on('error',e=>{diagLog('phone','DataConnection error: '+describePeerError(e));setPhoneStatus('通信エラー：'+(e.type||e.message||'不明'));});
   });
   p.on('error',e=>{
     phonePeerStarting=false;
@@ -225,8 +258,8 @@ async function setupPeerPhone(attempt=0){
       peerRetryTimer=setTimeout(()=>setupPeerPhone(attempt+1),700);
     }
   });
-  p.on('disconnected',()=>{setPhoneStatus('接続サーバーから切断。再接続を試しています…');try{p.reconnect();}catch(e){setPhoneStatus('サーバー再接続に失敗。ページを再読み込みしてください');}});
-  p.on('close',()=>{if(!opened)setPhoneStatus('接続サーバーに登録できませんでした');});
+  p.on('disconnected',()=>{diagLog('phone','PeerJS disconnected: シグナリングサーバーとの接続が切断');setPhoneStatus('接続サーバーから切断。再接続を試しています…');try{p.reconnect();}catch(e){setPhoneStatus('サーバー再接続に失敗。ページを再読み込みしてください');}});
+  p.on('close',()=>{diagLog('phone','PeerJS closeイベント');if(!opened)setPhoneStatus('接続サーバーに登録できませんでした');});
 }
 function handlePhoneCommand(m){
   if(m&&m.type==='pcHit'){if(gameRunning){tapAttempts++;hitTarget();send({type:'tapStats',attempts:tapAttempts,success:score,miss:missTaps,accuracy:tapAttempts?score/tapAttempts:0});}return;}
@@ -253,20 +286,20 @@ function connectPcToPhone(){
   if(!/^\d{6}$/.test(code)){setPcStatus('6桁の数字を入力してください');return;}
   if(!window.Peer){setPcStatus('通信ライブラリの読み込みに失敗。ページを再読み込みしてください');return;}
   closePeerObjects();peerRole='pc';$('monitorCode').textContent=code;setPcStatus('接続サーバーへ接続中…');
-  const p=new Peer(undefined,PEER_OPTIONS);peer=p;
+  const p=new Peer(undefined,PEER_OPTIONS);peer=p;diagLog('pc','PeerJSインスタンス作成。接続先=0.peerjs.com:443');
   let connectionStarted=false;
   p.on('open',()=>{
     setPcStatus('スマホ '+code+' を呼び出しています…');
     const c=p.connect('reflex-'+code,{reliable:true,serialization:'json'});conn=c;connectionStarted=true;
-    c.on('open',()=>{if(pcConnectTimer){clearTimeout(pcConnectTimer);pcConnectTimer=null;}setPcStatus('接続成功：スマホと通信中');c.send({type:'ping',at:Date.now(),protocol:2});});
+    c.on('open',()=>{diagLog('pc','DataConnection open。スマホとの通信路が開通');watchIceConnection(c,'pc');if(pcConnectTimer){clearTimeout(pcConnectTimer);pcConnectTimer=null;}setPcStatus('接続成功：スマホと通信中');c.send({type:'ping',at:Date.now(),protocol:2});});
     c.on('data',handleMonitorData);
-    c.on('close',()=>{if(conn===c){conn=null;setPcStatus('スマホとの通信が切れました。コードを確認して再接続してください');}});
-    c.on('error',e=>setPcStatus('データ通信エラー：'+(e.type||e.message||'不明')));
-    pcConnectTimer=setTimeout(()=>{if(!c.open)setPcStatus('接続タイムアウト。スマホ側の接続状態と6桁コードを確認し、再接続してください');},15000);
+    c.on('close',()=>{diagLog('phone','DataConnection close');if(conn===c){conn=null;setPcStatus('スマホとの通信が切れました。コードを確認して再接続してください');}});
+    c.on('error',e=>{diagLog('pc','DataConnection error: '+describePeerError(e));setPcStatus('データ通信エラー：'+(e.type||e.message||'不明'));});
+    pcConnectTimer=setTimeout(()=>{if(!c.open){diagLog('pc','15秒経過してもDataConnection openにならない。PeerJSサーバー登録と相手ID、WebRTC接続をログで確認');setPcStatus('接続タイムアウト。下の通信診断ログを確認してください');}},20000);
   });
-  p.on('error',e=>setPcStatus('PC側サーバーエラー：'+(e.type||e.message||'不明')));
-  p.on('disconnected',()=>{setPcStatus('PCが接続サーバーから切断。再接続してください');});
-  p.on('close',()=>{if(!connectionStarted)setPcStatus('PCの接続準備が終了しました。再接続してください');});
+  p.on('error',e=>{diagLog('pc','PeerJS error: '+describePeerError(e));setPcStatus('PC側サーバーエラー：'+(e.type||e.message||'不明'));});
+  p.on('disconnected',()=>{diagLog('pc','PeerJS disconnected: シグナリングサーバーとの接続が切断');setPcStatus('PCが接続サーバーから切断。再接続してください');});
+  p.on('close',()=>{diagLog('pc','PeerJS closeイベント');if(!connectionStarted)setPcStatus('PCの接続準備が終了しました。再接続してください');});
 }
 function monitorMouseHit(e){e.preventDefault();e.stopPropagation();if(!monitorTarget||monitorTarget.style.display==='none')return;send({type:'pcHit'});}
 monitorTarget.addEventListener('pointerdown',monitorMouseHit);
