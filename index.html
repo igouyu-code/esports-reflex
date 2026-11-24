@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>E-Sports Reflex Research System</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;background:#080a0d;color:#fff;font-family:Arial,"Noto Sans JP",sans-serif;touch-action:manipulation}body{overflow:auto}button,select,input{font:inherit}button{border:0;border-radius:12px;padding:13px 20px;font-weight:700;background:#1683ff;color:#fff;min-height:46px;cursor:pointer}button.secondary{background:#333}button:disabled{opacity:.5;cursor:not-allowed}.hidden{display:none!important}
+#app{min-height:100vh;display:flex;flex-direction:column}#top{height:64px;background:#15181d;display:flex;align-items:center;justify-content:space-around;flex-shrink:0}.stat{text-align:center;min-width:25%}.label{font-size:10px;color:#9aa3ad}.value{font-size:20px;font-weight:700;margin-top:2px}.green{color:#00e676}.yellow{color:#00d9ff}.orange{color:#ff9800}
+#game{position:relative;min-height:calc(100vh - 100px);margin:10px;border:2px solid #30343a;border-radius:16px;overflow:hidden;background:radial-gradient(circle at center,#1a1e23 0%,#090b0e 70%)}
+#target{position:absolute;width:64px;height:64px;border-radius:50%;background:#f00;border:4px solid #fff;box-shadow:0 0 12px #f00,0 0 30px rgba(255,0,0,.45);transform:translate(-50%,-50%);display:none;z-index:4;pointer-events:auto;cursor:crosshair}#target.hit{transform:translate(-50%,-50%) scale(.88)}
+#message{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;pointer-events:none;z-index:10}.card{background:rgba(0,0,0,.9);border:1px solid #444;border-radius:18px;padding:22px;width:min(92%,430px);pointer-events:auto}.card h1{margin:0 0 12px;font-size:25px}.card p{color:#ccc;line-height:1.55}.card button{width:100%;margin-top:8px}
+#questionnaire{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;overflow:auto;padding:14px;z-index:20;background:rgba(8,10,13,.98)}.question-card{width:min(94%,440px);max-height:100%;overflow:auto;background:#101318;border:1px solid #444;border-radius:18px;padding:20px}.question-card h1{margin:0 0 6px;font-size:23px}.sub{color:#aaa;font-size:12px;line-height:1.5;margin-bottom:15px}.q{margin:14px 0;text-align:left}.q label{display:block;font-size:14px;font-weight:700;margin-bottom:7px}.q select,.q input{width:100%;padding:11px;border-radius:10px;border:1px solid #555;background:#171a1f;color:#fff;font-size:15px}.error{color:#ff6b6b;font-size:12px;min-height:18px;margin-top:6px}.privacy{font-size:11px;color:#888;line-height:1.5;margin-top:10px}
+#modeSelect{position:absolute;inset:0;z-index:30;background:#080a0d;display:flex;align-items:center;justify-content:center;padding:16px}.mode-card{width:min(94%,560px);background:#101318;border:1px solid #3d4249;border-radius:18px;padding:24px;text-align:center}.mode-card h1{margin-top:0}.mode-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:18px}.mode-grid button{min-height:90px}.mode-grid small{display:block;color:#aaa;font-weight:400;margin-top:5px}.note{font-size:12px;color:#929aa4;line-height:1.5;margin-top:14px}
+#monitorPanel{padding:16px}.monitor-layout{display:grid;grid-template-columns:minmax(260px,1fr) minmax(280px,1fr) minmax(240px,.8fr);gap:14px}.panel{background:#101318;border:1px solid #353a41;border-radius:16px;padding:14px}.panel h2{font-size:17px;margin:0 0 10px}.monitor-camera{position:relative;background:#050607;border:1px solid #353a41;border-radius:12px;overflow:hidden;min-height:300px}.monitor-camera video{display:block;width:100%;height:auto;transform:scaleX(-1)}#pcCameraCanvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;transform:scaleX(-1)}.camera-readout{font-size:12px;color:#9aa3ad;text-align:center;padding:6px}.monitor-game{position:relative;height:420px;border:2px solid #343941;border-radius:14px;overflow:hidden;background:#090b0e}.monitor-target{position:absolute;width:64px;height:64px;cursor:pointer;pointer-events:auto;border-radius:50%;background:#f00;border:4px solid #fff;transform:translate(-50%,-50%);box-shadow:0 0 12px #f00}.thumb-dot{position:absolute;width:16px;height:16px;border-radius:50%;background:#00e676;transform:translate(-50%,-50%);box-shadow:0 0 12px #00e676}.path-svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}.monitor-stats{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}.monitor-stat{background:#171b20;border-radius:10px;padding:10px}.monitor-stat b{display:block;font-size:18px}.monitor-stat span{font-size:11px;color:#9aa3ad}.code{font-size:28px;letter-spacing:5px;font-weight:800;margin:8px 0}.status{font-size:13px;color:#aaa;min-height:20px}
+#cameraPanel{display:none !important;position:fixed;right:12px;bottom:50px;width:min(180px,38vw);z-index:15;background:#111;border:1px solid #444;border-radius:12px;padding:6px}.camera-wrap{position:relative}.camera-wrap video{display:block;width:100%;border-radius:8px;transform:scaleX(-1)}#cameraCanvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;transform:scaleX(-1)}.camera-label{font-size:10px;color:#aaa;text-align:center;padding:3px}.tracking-status{font-size:10px;color:#0f0;text-align:center}
+#dataPanel{margin:12px 10px;padding:14px;background:#101318;border:1px solid #353a41;border-radius:16px}.data-row{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid #24282d;font-size:12px}.data-row:last-child{border-bottom:0}.data-row span{color:#9aa3ad}.data-row b{text-align:right}.small{font-size:11px;color:#8f98a2;line-height:1.5}
+#hint{height:36px;display:flex;align-items:center;justify-content:center;color:#aaa;font-size:12px;flex-shrink:0}
+
+#phoneCalibration{position:absolute;inset:0;z-index:25;background:rgba(5,9,15,.98);display:flex;align-items:center;justify-content:center;padding:14px}
+#phoneCalibration.hidden{display:none!important}
+#phoneCalCard{position:relative;width:100%;height:100%;min-height:0;max-height:none;border:0;border-radius:0;background:radial-gradient(circle at center,#101b2d,#05070b 72%);overflow:hidden;display:flex;flex-direction:column;align-items:stretch;justify-content:stretch;padding:0;text-align:center}
+#phoneCalTitle{font-size:22px;margin:4px 0 8px}
+#phoneCalInstruction{font-size:15px;line-height:1.6;color:#e5edf8;max-width:520px;min-height:48px}
+#phoneCalProgress{font-size:12px;color:#93c5fd;margin:8px 0}
+#phoneCalStage{position:absolute;inset:0;flex:none;width:100%;height:100%;min-height:0;margin:0;border:0;border-radius:0;background:transparent;overflow:hidden}
+/* キャリブレーション中は文字・進捗・ボタンを表示せず、点滅ターゲットだけを全画面に表示 */
+#phoneCalTitle,#phoneCalInstruction,#phoneCalProgress,#phoneCalStatus,#phoneCalButtons{display:none!important}
+#phoneCalTarget{position:absolute;width:84px;height:84px;border:3px solid #60a5fa;border-radius:50%;background:rgba(37,99,235,.18);transform:translate(-50%,-50%);display:flex;align-items:center;justify-content:center;animation:calPulse 1s ease-in-out infinite;cursor:pointer;touch-action:manipulation}
+#phoneCalTarget:before{content:"";position:absolute;width:54px;height:54px;border-radius:50%;border:2px dashed #bfdbfe}
+#phoneCalTarget:after{content:"";position:absolute;width:22px;height:22px;border-radius:50%;background:#60a5fa;box-shadow:0 0 18px #3b82f6}
+#phoneCalTarget .mock-thumb{position:absolute;z-index:2;left:50%;top:50%;transform:translate(-50%,-50%);font-size:29px;filter:drop-shadow(0 0 7px #60a5fa);pointer-events:none}
+@keyframes calPulse{0%,100%{box-shadow:0 0 0 0 rgba(59,130,246,.45)}50%{box-shadow:0 0 0 13px rgba(59,130,246,0)}}
+#phoneCalStatus{font-size:12px;line-height:1.5;color:#9ca3af;min-height:36px;margin:4px 0}
+#phoneCalButtons{width:100%;display:flex;gap:8px;margin-top:6px}
+#phoneCalButtons button{flex:1}
+#phoneCalCancel{background:#333}
+
+/* スマホ実験はヘッダーをなくし、ゲーム・アンケート・キャリブレーションを画面全体に表示 */
+html.phone-mode, body.phone-mode{width:100%;height:100%;height:100dvh;overflow:hidden;overscroll-behavior:none}
+body.phone-mode #app{width:100%;height:100%;height:100dvh;min-height:0;overflow:hidden}
+body.phone-mode #top, body.phone-mode #hint{display:none!important}
+body.phone-mode #game{position:fixed;inset:0;width:100%;height:100%;height:100dvh;min-height:0;margin:0;border:0;border-radius:0;overflow:hidden;padding:0}
+body.phone-mode #message{position:absolute;inset:0}
+body.phone-mode #questionnaire{position:absolute;inset:0;padding:12px;overflow-y:auto;overscroll-behavior:contain}
+body.phone-mode .question-card{width:100%;max-width:520px;max-height:calc(100dvh - 24px);padding:18px}
+body.phone-mode #phoneCalibration{position:fixed;inset:0;width:100vw;height:100vh;height:100dvh;padding:0;overflow:hidden}
+body.phone-mode #phoneCalCard{width:100%;height:100%;height:100dvh;min-height:0;max-height:none;border:0;border-radius:0;padding:0}
+body.phone-mode #phoneCalStage{position:absolute;inset:0;width:100%;height:100%;margin:0;border:0;border-radius:0}
+body.phone-mode #phoneCalTarget{width:clamp(76px,20vw,96px);height:clamp(76px,20vw,96px)}
+body.phone-mode #target{width:clamp(54px,14vw,68px);height:clamp(54px,14vw,68px)}
+body.phone-mode #result{max-height:calc(100dvh - 28px);overflow:auto}
+@media(max-width:1000px){.monitor-layout{grid-template-columns:1fr 1fr}}@media(max-width:700px){.monitor-layout{grid-template-columns:1fr}.mode-grid{grid-template-columns:1fr}.monitor-game{height:300px}#cameraPanel{width:130px}}
+
+#trajectoryResults{margin-top:14px}.trajectory-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.trajectory-card{background:#101318;border:1px solid #353a41;border-radius:14px;padding:12px;min-width:0}.trajectory-card h3{font-size:15px;margin:0 0 8px}.trajectory-card canvas{display:block;width:100%;height:auto;background:#fff;border-radius:8px}.trajectory-card button{margin-top:8px}.trajectory-note{font-size:12px;color:#aeb6c0;margin:8px 0 0}.trajectory-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}@media(max-width:900px){.trajectory-grid{grid-template-columns:1fr}.monitor-layout{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div id="app">
+<div id="modeSelect">
+  <div class="mode-card">
+    <h1>卒研 実験システム</h1>
+    <p>スマートフォンでゲームを実施し、MediaPipeで親指の動きを記録します。PCではゲーム状態と親指の軌跡をリアルタイム表示します。</p>
+    <div class="mode-grid">
+      <button id="phoneMode">📱 スマホ実験<small>外部カメラ・MediaPipe・タップ</small></button>
+      <button id="pcMode" class="secondary">💻 PCモニター<small>ゲーム・親指軌跡を表示</small></button>
+    </div>
+    <div class="note">PCモニターはスマホ側で発行される6桁コードに接続します。スマホ側のカメラでMediaPipeによる親指追跡を行います。GitHub PagesのHTTPS上で使用してください。</div>
+  </div>
+</div>
+
+<div id="top">
+  <div class="stat"><div class="label">TIME</div><div id="time" class="value yellow">20</div></div>
+  <div class="stat"><div class="label">SCORE</div><div id="score" class="value green">0</div></div>
+  <div class="stat"><div class="label">REACTION</div><div id="reaction" class="value">0.00s</div></div>
+  <div class="stat"><div class="label">LEVEL</div><div id="level" class="value orange">BEGINNER</div></div>
+</div>
+
+<div id="game">
+  <div id="questionnaire">
+    <div class="question-card">
+      <h1>実験前アンケート</h1>
+      <div class="sub">卒業研究の実験に使用します。氏名・住所など個人を特定できる情報は入力しないでください。</div>
+      <div class="q"><label for="ageGroup">1. 年齢</label><select id="ageGroup"><option value="">選択してください</option><option>18歳未満</option><option>18～20歳</option><option>21～23歳</option><option>24～29歳</option><option>30歳以上</option><option>回答しない</option></select></div>
+      <div class="q"><label for="handedness">2. 利き手</label><select id="handedness"><option value="">選択してください</option><option>右手</option><option>左手</option><option>両利き</option><option>回答しない</option></select></div>
+      <div class="q"><label for="dailyGame">3. 1日のゲーム時間</label><select id="dailyGame"><option value="">選択してください</option><option>ほとんどしない</option><option>30分未満</option><option>30分～1時間</option><option>1～2時間</option><option>2～4時間</option><option>4時間以上</option></select></div>
+      <div class="q"><label for="smartphoneGame">4. スマートフォンゲームのプレイ頻度</label><select id="smartphoneGame"><option value="">選択してください</option><option>ほとんどしない</option><option>月に数回</option><option>週に1～2回</option><option>週に3～6回</option><option>ほぼ毎日</option></select></div>
+      <div class="q"><label for="gameExperience">5. E-Sports・アクションゲームの経験</label><select id="gameExperience"><option value="">選択してください</option><option>ほとんどない</option><option>少しある</option><option>普通</option><option>よくプレイする</option><option>非常によくプレイする</option></select></div>
+      <div class="q"><label for="favoriteGame">6. 普段プレイしているゲーム（任意）</label><input id="favoriteGame" maxlength="80" placeholder="例：HOK、PUBG、APEXなど"></div>
+      <div id="questionError" class="error"></div><button id="questionnaireButton">ゲームへ進む</button>
+      <div class="privacy">※このページは実験データを端末内でまとめます。PCとの通信は実験中の表示同期に使用します。</div>
+    </div>
+  </div>
+  <div id="target"></div>
+  <div id="phoneCalibration" class="hidden">
+    <div id="phoneCalCard">
+      <h1 id="phoneCalTitle">キャリブレーション準備</h1>
+      <div id="phoneCalInstruction">PC側のカメラで親指が認識されていることを確認してください。準備ができたら「開始」を押します。</div>
+      <div id="phoneCalProgress">準備 0 / 3</div>
+      <div id="phoneCalStage">
+        <button id="phoneCalTarget" aria-label="キャリブレーション位置をタップ"><span class="mock-thumb">👍</span></button>
+      </div>
+      <div id="phoneCalStatus">PCモニターと接続し、カメラで親指を認識できる状態にしてください。</div>
+      <div id="phoneCalButtons"><button id="phoneCalBegin">キャリブレーション開始</button><button id="phoneCalCancel" class="secondary">戻る</button></div>
+    </div>
+  </div>
+  <div id="message">
+    <div id="startCard" class="card hidden"><h1>REFLEX GAME</h1><div id="startCodeBox" style="margin:14px 0;padding:14px;border-radius:12px;background:#171b22;border:2px solid #00d9ff;text-align:center"><div style="font-size:13px;color:#aaa">PCモニター接続用 6桁コード</div><div id="startPhoneCode" style="font-size:36px;font-weight:800;letter-spacing:7px;color:#00d9ff">------</div><div style="font-size:12px;color:#aaa;margin-top:5px">この数字をPCモニターに入力してください</div></div><p>赤いターゲットが表示されたら、できるだけ早くタップしてください。<br>制限時間は20秒です。</p><button id="startButton">START</button></div>
+    <div id="result" class="card hidden"><h1>RESULT</h1><p>SCORE</p><div id="finalScore" style="font-size:36px;font-weight:bold;color:#00e676">0</div><p>AVERAGE REACTION</p><div id="finalAvg" style="font-size:30px;color:#00d9ff">0.00s</div><p>タップ成功率</p><div id="finalAccuracy" style="font-size:28px;color:#00e676">--%</div><p id="finalTapDetail" style="font-size:13px">成功 0 / タップ 0 / ミス 0</p><p>LEVEL</p><div id="finalLevel" style="font-size:28px;color:#ff9800">BEGINNER</div><button id="downloadDataButton">実験データを保存（CSV）</button><button id="restartButton" class="secondary">PLAY AGAIN</button></div>
+  </div>
+</div>
+<div id="hint">ターゲットをできるだけ速くタップ</div>
+
+<div id="cameraPanel" class="hidden"><div class="camera-wrap"><video id="camera" autoplay playsinline muted></video><canvas id="cameraCanvas"></canvas></div><div class="camera-label">カメラ・親指追跡</div><div id="codeBox" style="margin:10px 0;padding:12px;border-radius:12px;background:#171b22;border:2px solid #00d9ff;text-align:center"><div style="font-size:13px;color:#aaa">PCモニター接続用 6桁コード</div><div id="phoneCode" style="font-size:32px;font-weight:800;letter-spacing:6px;color:#00d9ff">------</div><div style="font-size:12px;color:#aaa;margin-top:4px">この数字をPCモニターに入力してください</div></div><div id="trackingStatus" class="tracking-status">準備中</div></div>
+
+<div id="monitorPanel" class="hidden">
+  <div class="panel"><h2>PCモニター接続</h2><div class="small">スマホのカメラを使ってMediaPipeで親指の位置を取得し、ゲーム中の親指軌跡を記録します。</div><div>スマホ画面に表示されたコード：</div><div id="monitorCode" class="code">------</div><div id="monitorStatus" class="status">接続待ち</div><button id="pcDownloadButton" class="hidden" style="margin-top:10px">PCで実験データを保存（CSV）</button><button id="monitorBack" class="secondary">戻る</button></div>
+  <div class="panel" id="calibrationPanel" style="margin-top:14px">
+    <h2>親指座標のキャリブレーション</h2>
+    <div class="small">スマホ画面の指定位置に親指を置き、その位置を保ったままPCの対応する「記録」ボタンを押してください。3点からカメラ座標→ゲーム画面座標のアフィン変換を求めます。カメラに親指が認識されている必要があります。</div>
+    <div class="monitor-stats" style="margin-top:10px">
+      <div class="monitor-stat"><span>POINT 1</span><b>左上寄り (10%, 10%)</b><button id="calPoint1" class="secondary">記録 1</button></div>
+      <div class="monitor-stat"><span>POINT 2</span><b>右上寄り (90%, 10%)</b><button id="calPoint2" class="secondary">記録 2</button></div>
+      <div class="monitor-stat"><span>POINT 3</span><b>左下寄り (10%, 90%)</b><button id="calPoint3" class="secondary">記録 3</button></div>
+      <div class="monitor-stat"><span>STATUS</span><b id="calStatus" style="font-size:13px">未実施</b><button id="calReset" class="secondary">やり直す</button></div>
+    </div>
+  </div>
+  <div class="monitor-layout" style="margin-top:14px">
+    <div class="panel"><h2>外付けカメラ・親指追跡</h2><div class="monitor-camera"><video id="pcCamera" autoplay playsinline muted></video><canvas id="pcCameraCanvas"></canvas></div><div style="margin-top:8px"><select id="pcCameraSelect" style="width:100%;padding:9px;border-radius:8px;background:#171a1f;color:#fff;border:1px solid #555"><option>カメラを選択</option></select></div><div id="pcCameraStatus" class="camera-readout">カメラ起動中…</div><div id="pcThumbCoord" class="camera-readout">親指座標：-- / --　軌跡：0 points</div></div>
+    <div class="panel"><h2>ゲーム画面</h2><div id="monitorGame" class="monitor-game"><div id="monitorTarget" class="monitor-target" style="display:none"></div><svg id="pathSvg" class="path-svg" viewBox="0 0 100 100" preserveAspectRatio="none"><polyline id="pathLine" points="" fill="none" stroke="#00e676" stroke-width="1.2"/></svg><div id="thumbDot" class="thumb-dot" style="display:none"></div></div></div>
+    <div class="panel"><h2>リアルタイム計測</h2><div class="monitor-stats"><div class="monitor-stat"><span>TIME</span><b id="mTime">20</b></div><div class="monitor-stat"><span>SCORE</span><b id="mScore">0</b></div><div class="monitor-stat"><span>REACTION</span><b id="mReaction">0.00s</b></div><div class="monitor-stat"><span>LEVEL</span><b id="mLevel">BEGINNER</b></div></div><h2 style="margin-top:18px">現在のターゲット</h2><div class="small" id="mTargetInfo">待機中</div><h2 style="margin-top:18px">軌跡</h2><div class="small" id="mPathInfo">0 points</div></div>
+  </div>
+  <div id="trajectoryResults" class="panel hidden">
+    <h2>実験後の軌跡図（4枚）</h2>
+    <div class="small">正解軌跡は同じ側に出現した赤い円の中心を出現順につないだ線、実測軌跡はキャリブレーション後の親指座標です。横軸・縦軸はゲーム画面内の正規化座標です。</div>
+    <div class="trajectory-grid" style="margin-top:12px">
+      <div class="trajectory-card"><h3>① 左半分：正解軌跡</h3><canvas id="plotIdealLeft" width="640" height="400"></canvas><button class="secondary" data-save-plot="plotIdealLeft">この図をPNG保存</button></div>
+      <div class="trajectory-card"><h3>② 左手：実測軌跡（左半分のターゲット中）</h3><canvas id="plotActualLeft" width="640" height="400"></canvas><button class="secondary" data-save-plot="plotActualLeft">この図をPNG保存</button></div>
+      <div class="trajectory-card"><h3>③ 右半分：正解軌跡</h3><canvas id="plotIdealRight" width="640" height="400"></canvas><button class="secondary" data-save-plot="plotIdealRight">この図をPNG保存</button></div>
+      <div class="trajectory-card"><h3>④ 右手：実測軌跡（右半分のターゲット中）</h3><canvas id="plotActualRight" width="640" height="400"></canvas><button class="secondary" data-save-plot="plotActualRight">この図をPNG保存</button></div>
+    </div>
+    <p id="trajectoryNote" class="trajectory-note">実験終了後に図を生成します。</p>
+    <div class="trajectory-actions"><button id="saveAllPlots">4つの図を順番にPNG保存</button></div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script type="module">
+const GAME_DURATION=20;
+const MODEL_URL="https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task";
+const $=id=>document.getElementById(id);
+const target=$('target'), game=$('game');
+const questionnaire=$('questionnaire'), modeSelect=$('modeSelect');
+const startCard=$('startCard'), resultCard=$('result');
+const startButton=$('startButton'), restartButton=$('restartButton');
+const qButton=$('questionnaireButton'), downloadButton=$('downloadDataButton');
+const cameraPanel=$('cameraPanel'), camera=$('camera'), cameraCanvas=$('cameraCanvas'), trackingStatus=$('trackingStatus');
+const monitorPanel=$('monitorPanel'), monitorGame=$('monitorGame'), monitorTarget=$('monitorTarget'), thumbDot=$('thumbDot'), pathLine=$('pathLine');
+const pcCamera=$('pcCamera'), pcCameraCanvas=$('pcCameraCanvas'), pcCameraStatus=$('pcCameraStatus'), pcThumbCoord=$('pcThumbCoord');
+let mode=null, peer=null, conn=null, handLandmarker=null, mediaStream=null, tracking=false, lastVideoTime=-1;
+let pcHandLandmarker=null, pcMediaStream=null, pcTracking=false, pcLastVideoTime=-1, pcPath=[], pcLastX=null, pcLastY=null;
+let score=0,reactionTimes=[],records=[],startTime=0,spawnTime=0,gameRunning=false,timerId=null,targetId=0,currentPath=[],lastThumb=null,lastPathSample=0,lastTapTime=0,tapAttempts=0,missTaps=0,tapLog=[];
+let qData={}; let previousTargetCenter=null;
+let pcExperiment={}; let pcRecords=[]; let pcEvents=[]; let pcTapStats={attempts:0,success:0,miss:0,accuracy:0}; let pcThumbSamples=[]; let pcTarget=null; let pcTargetHistory=[];
+let pcLatestThumb=null, calibrationPoints=[], calibrationTransform=null, pcPhoneThumbSamples=[];
+const calibrationTargets=[{x:.1,y:.1},{x:.9,y:.1},{x:.1,y:.9}];
+const phoneCalTargets=[{x:.12,y:.84,label:'左下'},{x:.12,y:.16,label:'左上'},{x:.88,y:.84,label:'右下'}];
+let phoneCalIndex=-1,phoneCalWaiting=false,phoneCalDone=false;
+
+
+function avg(){return reactionTimes.length?reactionTimes.reduce((a,b)=>a+b,0)/reactionTimes.length:0}
+function level(){const a=avg();return a<.30?'PRO':a<.55?'INTERMEDIATE':'BEGINNER'}
+function ui(){ $('score').textContent=score;$('reaction').textContent=avg().toFixed(2)+'s';$('level').textContent=level();$('time').textContent=Math.max(0,Math.ceil(GAME_DURATION-(performance.now()-startTime)/1000)); }
+function send(msg){if(conn&&conn.open)conn.send(msg)}
+function randomCode(){return String(Math.floor(100000+Math.random()*900000))}
+
+function resetGameView(){startCard.classList.remove('hidden');resultCard.classList.add('hidden');target.style.display='none';questionnaire.style.display='flex'}
+
+$('phoneMode').addEventListener('click',async()=>{mode='phone';document.documentElement.classList.add('phone-mode');document.body.classList.add('phone-mode');modeSelect.classList.add('hidden');$('top').classList.add('hidden');$('game').classList.remove('hidden');questionnaire.style.display='flex';cameraPanel.classList.remove('hidden');const code=randomCode();$('phoneCode').textContent=code;$('startPhoneCode').textContent=code;$('trackingStatus').textContent='この6桁コードをPCモニターに入力してください';await setupPeerPhone();await setupCamera();});
+$('pcMode').addEventListener('click',async()=>{mode='pc';modeSelect.classList.add('hidden');$('top').classList.add('hidden');$('game').classList.add('hidden');$('hint').classList.add('hidden');monitorPanel.classList.remove('hidden');setupPeerMonitor();await setupPcCamera();});
+$('monitorBack').addEventListener('click',()=>location.reload());
+
+async function setupPeerPhone(){
+  const displayedCode=$('phoneCode').textContent;
+  if(!window.Peer){$('trackingStatus').textContent='6桁コードは表示中（PC接続機能のみ読み込み失敗）';return}
+  if(!/^\d{6}$/.test($('phoneCode').textContent)) { const code=randomCode(); $('phoneCode').textContent=code; $('startPhoneCode').textContent=code; }
+  const code=$('phoneCode').textContent;
+  const id='reflex-'+code; peer=new Peer(id);
+  peer.on('open',id=>{ const code=id.replace('reflex-',''); $('phoneCode').textContent=code; $('startPhoneCode').textContent=code; $('trackingStatus').textContent='PCモニターにこの6桁コードを入力してください';});
+  peer.on('connection',c=>{conn=c;conn.on('open',()=>{send({type:'hello',duration:GAME_DURATION});$('trackingStatus').textContent='PC接続済み・MediaPipe追跡中'});conn.on('data',handlePhoneCommand);conn.on('close',()=>{$('trackingStatus').textContent='PC接続が切れました'});});
+  peer.on('error',e=>console.warn(e));
+}
+function handlePhoneCommand(m){
+  if(m&&m.type==='pcHit'){if(gameRunning){tapAttempts++;hitTarget();send({type:'tapStats',attempts:tapAttempts,success:score,miss:missTaps,accuracy:tapAttempts?score/tapAttempts:0});}return;}
+  if(m&&m.type==='phoneCalibrationAck'){
+    if(!phoneCalWaiting)return;
+    if(Number(m.index)!==phoneCalIndex)return;
+    phoneCalWaiting=false;
+    if(!m.ok){phoneCalWaiting=true;$('phoneCalStatus').textContent=m.message||'PC側で記録できませんでした。親指の位置を確認してください。';return;}
+    phoneCalIndex++;
+    if(phoneCalIndex>=phoneCalTargets.length){finishPhoneCalibration();return;}
+    showPhoneCalTarget();
+    $('phoneCalStatus').textContent='PC側で記録しました。次の位置へ進みます。';
+  }
+}
+function setupPeerMonitor(){
+  const code=prompt('スマホに表示されている6桁コードを入力してください');
+  if(!code||!/^\d{6}$/.test(code)){ $('monitorStatus').textContent='6桁コードが必要です'; return }
+  $('monitorCode').textContent=code;
+  peer=new Peer();
+  peer.on('open',()=>{conn=peer.connect('reflex-'+code);conn.on('open',()=>{$('monitorStatus').textContent='接続しました。スマホ側でゲームを開始してください。'});conn.on('data',handleMonitorData);conn.on('close',()=>{$('monitorStatus').textContent='接続が切れました'});});
+  peer.on('error',e=>{$('monitorStatus').textContent='接続エラー: '+e.type});
+}
+function monitorMouseHit(e){e.preventDefault();e.stopPropagation();if(!monitorTarget||monitorTarget.style.display==='none')return;send({type:'pcHit'});}
+monitorTarget.addEventListener('pointerdown',monitorMouseHit);
+monitorTarget.addEventListener('click',monitorMouseHit);
+function handleMonitorData(m){
+  if(m.type==='phoneCalibrationReady'){
+    pcPhoneCalibrationActive=true;
+    calibrationPoints=[];calibrationTransform=null;
+    $('calStatus').textContent='スマホ側の準備完了：記録 1 を押してください';
+    $('monitorStatus').textContent='スマホ側キャリブレーション中。親指を合わせてPC側の記録ボタンを押してください。';
+    return;
+  }
+  if(m.type==='phoneCalibrationPoint'){
+    if(!pcLatestThumb){
+      send({type:'phoneCalibrationAck',ok:false,message:'PCカメラで親指を認識できません。手をカメラに映してから、もう一度タップしてください。'});
+      return;
+    }
+    const i=Number(m.index);
+    if(!Number.isInteger(i)||i<0||i>2){
+      send({type:'phoneCalibrationAck',ok:false,message:'測定位置の情報が不正です。'});
+      return;
+    }
+    calibrationPoints[i]={cameraX:pcLatestThumb.x,cameraY:pcLatestThumb.y,targetX:Number(m.targetX),targetY:Number(m.targetY)};
+    $('calStatus').textContent=calibrationPoints.filter(Boolean).length+'/3点を記録（スマホ側）';
+    if(calibrationPoints.filter(Boolean).length===3){
+      try{
+        const a=calibrationPoints.map(p=>[p.cameraX,p.cameraY,1]);
+        const tx=solve3(a,calibrationPoints.map(p=>p.targetX));
+        const ty=solve3(a,calibrationPoints.map(p=>p.targetY));
+        calibrationTransform={x:tx,y:ty};
+        $('calStatus').textContent='完了：座標変換を適用中';
+        $('monitorStatus').textContent='スマホ側キャリブレーション完了。実験を開始できます。';
+      }catch(e){
+        calibrationTransform=null;
+        calibrationPoints[i]=null;
+        $('calStatus').textContent='失敗：測定位置を離して再実施してください';
+        send({type:'phoneCalibrationAck',ok:false,message:'測定位置の差が小さく、変換を計算できませんでした。手とカメラの位置を調整して再試行してください。'});
+        return;
+      }
+    }
+    send({type:'phoneCalibrationAck',ok:true,message:'記録しました'});
+    return;
+  }
+  if(m.type==='experimentStart'){
+    pcExperiment=m.questionnaire||{};pcExperiment.startedAt=m.startedAt||new Date().toISOString();
+    pcRecords=[];pcEvents=[];pcTapStats={attempts:0,success:0,miss:0,accuracy:0};pcThumbSamples=[];pcPhoneThumbSamples=[];pcTargetHistory=[];$('pcDownloadButton').classList.add('hidden');$('trajectoryResults').classList.add('hidden');
+    $('monitorStatus').textContent='接続しました。実験データを受信中です。';
+  } else if(m.type==='state'){
+    $('mTime').textContent=m.time;$('mScore').textContent=m.score;$('mReaction').textContent=Number(m.reaction||0).toFixed(2)+'s';$('mLevel').textContent=m.level;
+    monitorTarget.style.display=m.targetVisible?'block':'none';monitorTarget.style.left=(m.target.x*100)+'%';monitorTarget.style.top=(m.target.y*100)+'%';
+    $('mTargetInfo').textContent='Target #'+m.target.id+' / x='+Number(m.target.x).toFixed(3)+' y='+Number(m.target.y).toFixed(3);
+    pcTarget={id:m.target.id,x:m.target.x,y:m.target.y,time:Date.now(),visible:m.targetVisible};
+    if(m.targetVisible && Number.isFinite(Number(m.target.id)) && !pcTargetHistory.some(t=>t.id===Number(m.target.id))){pcTargetHistory.push({id:Number(m.target.id),x:Number(m.target.x),y:Number(m.target.y),time:Date.now()});}
+  } else if(m.type==='thumb'){
+    thumbDot.style.display='block';thumbDot.style.left=(m.x*100)+'%';thumbDot.style.top=(m.y*100)+'%';
+    $('mPathInfo').textContent=m.count+' points / Target #'+m.targetId;
+    pathLine.setAttribute('points',m.path.map(p=>(p.x*100).toFixed(2)+','+(p.y*100).toFixed(2)).join(' '));
+    pcPhoneThumbSamples.push({time:Date.now(),targetId:m.targetId,x:m.x,y:m.y});
+  } else if(m.type==='tapStats'){
+    pcTapStats={attempts:Number(m.attempts||0),success:Number(m.success||0),miss:Number(m.miss||0),accuracy:Number(m.accuracy||0)};
+    $('mTargetInfo').textContent='タップ成功 '+m.success+' / 試行 '+m.attempts+' / ミス '+m.miss+' / 成功率 '+(Number(m.accuracy||0)*100).toFixed(1)+'%';
+  } else if(m.type==='event'){
+    $('monitorStatus').textContent=m.text;
+    pcEvents.push({time:new Date().toISOString(),text:m.text});
+    if(m.record){pcRecords.push(m.record);}
+    if(m.text==='GAME START'){pcRecords=[];pcEvents=[];pcTapStats={attempts:0,success:0,miss:0,accuracy:0};pcThumbSamples=[];pcPhoneThumbSamples=[];pcTargetHistory=[];pcPath=[];pcLastX=null;pcLastY=null;}
+    if(m.text==='GAME END'){
+      pathLine.setAttribute('points','');
+      $('pcDownloadButton').classList.remove('hidden');
+      $('monitorStatus').textContent='実験終了。PC側でCSVを保存できます。記録ターゲット数：'+pcRecords.length;renderTrajectoryPlots();
+    }
+  }
+}
+function csvEscape(v){return '"'+String(v??'').replace(/"/g,'""')+'"'}
+function pathMetrics(path){
+  if(!Array.isArray(path)||path.length<2)return {actualDistance:0,idealDistance:0,meanLineError:0,efficiency:''};
+  let actual=0;for(let i=1;i<path.length;i++)actual+=Math.hypot(path[i].x-path[i-1].x,path[i].y-path[i-1].y);
+  const a=path[0],b=path[path.length-1],ideal=Math.hypot(b.x-a.x,b.y-a.y);
+  let err=0;for(const p of path){const dx=b.x-a.x,dy=b.y-a.y,den=dx*dx+dy*dy;let t=den?((p.x-a.x)*dx+(p.y-a.y)*dy)/den:0;t=Math.max(0,Math.min(1,t));err+=Math.hypot(p.x-(a.x+t*dx),p.y-(a.y+t*dy));}
+  return {actualDistance:actual,idealDistance:ideal,meanLineError:err/path.length,efficiency:actual>0?(ideal/actual):''};
+}
+function downloadPcData(){
+  const rows=[['section','field','value'],['summary','started_at',pcExperiment.startedAt||''],...Object.entries(pcExperiment).filter(([k])=>k!=='startedAt').map(([k,v])=>['questionnaire',k,v]),['summary','target_count',pcRecords.length],['summary','tap_attempts',pcTapStats.attempts],['summary','successful_taps',pcTapStats.success],['summary','miss_taps',pcTapStats.miss],['summary','tap_success_rate_percent',(pcTapStats.accuracy*100).toFixed(2)]];
+  rows.push([]);rows.push(['target_id','reaction_time_sec','target_x','target_y','target_distance_normalized','path_point_count','thumb_path_json','actual_thumb_distance_norm','straight_thumb_distance_norm','mean_deviation_from_thumb_start_end_line_norm','movement_efficiency']);
+  for(const r of pcRecords){const met=pathMetrics(r.path);rows.push([r.targetId,r.reactionTime,r.targetX,r.targetY,r.targetDistance??'',r.pathPointCount,JSON.stringify(r.path||[]),met.actualDistance,met.idealDistance,met.meanLineError,met.efficiency]);}
+  rows.push([]);rows.push(['pc_camera_sample_time_ms','target_id','thumb_x_camera_norm','thumb_y_camera_norm','thumb_x_game_norm_calibrated','thumb_y_game_norm_calibrated','calibration_applied','hand']);
+  for(const p of pcThumbSamples)rows.push([p.time,p.targetId,p.x,p.y,p.mappedX,p.mappedY,p.calibrated,p.hand]);
+  rows.push([]);rows.push(['phone_camera_sample_time_ms','target_id','thumb_x_phone_camera_norm','thumb_y_phone_camera_norm']);
+  for(const p of pcPhoneThumbSamples)rows.push([p.time,p.targetId,p.x,p.y]);
+  rows.push([]);rows.push(['target_sequence_id','target_x_game_norm','target_y_game_norm','target_side']);for(const t of pcTargetHistory)rows.push([t.id,t.x,t.y,t.x<0.5?'LEFT_HALF':'RIGHT_HALF']);
+  rows.push([]);rows.push(['calibration_point','camera_x','camera_y','target_x','target_y']);
+  calibrationPoints.forEach((p,i)=>{if(p)rows.push([i+1,p.cameraX,p.cameraY,p.targetX,p.targetY]);});
+  rows.push([]);rows.push(['event_time','event']);for(const e of pcEvents)rows.push([e.time,e.text]);
+  const csv='\uFEFF'+rows.map(row=>row.map(pcCsvEscape).join(',')).join('\r\n');
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));a.download='reflex_pc_experiment_data.csv';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+}
+$('pcDownloadButton').addEventListener('click',downloadPcData);
+function solve3(a,b){
+  const m=a.map((row,i)=>[...row,b[i]]);
+  for(let c=0;c<3;c++){let pivot=c;for(let r=c+1;r<3;r++)if(Math.abs(m[r][c])>Math.abs(m[pivot][c]))pivot=r;if(Math.abs(m[pivot][c])<1e-8)throw new Error('3点の位置関係が不適切です');[m[c],m[pivot]]=[m[pivot],m[c]];const d=m[c][c];for(let j=c;j<4;j++)m[c][j]/=d;for(let r=0;r<3;r++){if(r===c)continue;const f=m[r][c];for(let j=c;j<4;j++)m[r][j]-=f*m[c][j];}}
+  return m.map(row=>row[3]);
+}
+function recordCalibrationPoint(i){
+  if(pcPhoneCalibrationActive){
+    const count=calibrationPoints.filter(Boolean).length;
+    if(i!==count){$('calStatus').textContent='順番に記録してください。次は記録 '+(count+1)+' です。';return;}
+    if(!conn||!conn.open){$('calStatus').textContent='スマホとの接続がありません';return;}
+    if(!pcLatestThumb){$('calStatus').textContent='親指を認識できません。カメラに手を映してください。';send({type:'phoneCalibrationAck',index:i,ok:false,message:'PCカメラで親指を認識できません。手を映してから同じ記録ボタンを押してください。'});return;}
+    calibrationPoints[i]={cameraX:pcLatestThumb.x,cameraY:pcLatestThumb.y,targetX:calibrationTargets[i].x,targetY:calibrationTargets[i].y};
+    if(i===2){
+      try{
+        const a=calibrationPoints.map(p=>[p.cameraX,p.cameraY,1]);
+        const tx=solve3(a,calibrationPoints.map(p=>p.targetX));
+        const ty=solve3(a,calibrationPoints.map(p=>p.targetY));
+        calibrationTransform={x:tx,y:ty};
+      }catch(e){
+        calibrationPoints[i]=null;calibrationTransform=null;
+        $('calStatus').textContent='3点の位置関係が不適切です。記録3をやり直してください。';
+        send({type:'phoneCalibrationAck',index:i,ok:false,message:'3点の位置関係が不適切です。手の位置を調整して、PC側の記録3をもう一度押してください。'});
+        return;
+      }
+    }
+    $('calStatus').textContent=(i+1)+'/3点を記録';
+    send({type:'phoneCalibrationAck',index:i,ok:true,message:'PC側で記録しました'});
+    if(i===2){
+      pcPhoneCalibrationActive=false;
+      $('calStatus').textContent='完了：3点を記録しました';
+      $('monitorStatus').textContent='キャリブレーション完了。スマホ側でゲームが開始されます。';
+    }else{
+      $('calStatus').textContent='記録 '+(i+1)+' 完了。次は記録 '+(i+2)+' を押してください。';
+    }
+    return;
+  }
+  if(!pcLatestThumb){$('calStatus').textContent='親指を認識できません';return;}
+  calibrationPoints[i]={cameraX:pcLatestThumb.x,cameraY:pcLatestThumb.y,targetX:calibrationTargets[i].x,targetY:calibrationTargets[i].y};
+  $('calStatus').textContent=calibrationPoints.filter(Boolean).length+'/3点を記録';
+  if(calibrationPoints.filter(Boolean).length===3){
+    try{const a=calibrationPoints.map(p=>[p.cameraX,p.cameraY,1]);const tx=solve3(a,calibrationPoints.map(p=>p.targetX));const ty=solve3(a,calibrationPoints.map(p=>p.targetY));calibrationTransform={x:tx,y:ty};$('calStatus').textContent='完了：座標変換を適用中';$('monitorStatus').textContent='キャリブレーション完了。実験を開始できます。';}
+    catch(e){calibrationTransform=null;$('calStatus').textContent='失敗：3点を離して再記録';}
+  }
+}
+function resetCalibration(){calibrationPoints=[];calibrationTransform=null;pcPhoneCalibrationActive=false;$('calStatus').textContent='未実施';}
+$('calPoint1').addEventListener('click',()=>recordCalibrationPoint(0));
+$('calPoint2').addEventListener('click',()=>recordCalibrationPoint(1));
+$('calPoint3').addEventListener('click',()=>recordCalibrationPoint(2));
+$('calReset').addEventListener('click',resetCalibration);
+function mapCameraToGame(x,y){if(!calibrationTransform)return null;const a=calibrationTransform.x,b=calibrationTransform.y;return {x:a[0]*x+a[1]*y+a[2],y:b[0]*x+b[1]*y+b[2]};}
+
+function drawTrajectoryPlot(canvasId, points, opts={}){
+  const canvas=$(canvasId),ctx=canvas.getContext('2d'),w=canvas.width,h=canvas.height;
+  ctx.clearRect(0,0,w,h);ctx.fillStyle='#fff';ctx.fillRect(0,0,w,h);
+  const pad={l:58,r:22,t:22,b:48},pw=w-pad.l-pad.r,ph=h-pad.t-pad.b;
+  ctx.strokeStyle='#e5e7eb';ctx.lineWidth=1;
+  for(let i=0;i<=10;i++){const x=pad.l+pw*i/10,y=pad.t+ph*i/10;ctx.beginPath();ctx.moveTo(x,pad.t);ctx.lineTo(x,pad.t+ph);ctx.stroke();ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(pad.l+pw,y);ctx.stroke();}
+  ctx.strokeStyle='#333';ctx.lineWidth=2;ctx.strokeRect(pad.l,pad.t,pw,ph);
+  ctx.fillStyle='#222';ctx.font='14px sans-serif';ctx.textAlign='center';ctx.fillText('ゲーム画面 X（0〜1）',pad.l+pw/2,h-12);
+  ctx.save();ctx.translate(18,pad.t+ph/2);ctx.rotate(-Math.PI/2);ctx.fillText('ゲーム画面 Y（0〜1）',0,0);ctx.restore();
+  ctx.textAlign='center';ctx.font='12px sans-serif';for(let i=0;i<=5;i++){const v=i/5;ctx.fillText(v.toFixed(1),pad.l+pw*v,pad.t+ph+19);ctx.fillText(v.toFixed(1),pad.l-25,pad.t+ph-ph*v+4);}
+  const xy=p=>({x:pad.l+Math.max(0,Math.min(1,Number(p.x)))*pw,y:pad.t+Math.max(0,Math.min(1,Number(p.y)))*ph});
+  if(opts.leftHalf){ctx.fillStyle='#f3f7ff';ctx.fillRect(pad.l,pad.t,pw/2,ph);} else if(opts.rightHalf){ctx.fillStyle='#fff7f0';ctx.fillRect(pad.l+pw/2,pad.t,pw/2,ph);}
+  // redraw grid and border over the lightly shaded region
+  ctx.strokeStyle='#e5e7eb';ctx.lineWidth=1;for(let i=0;i<=10;i++){const x=pad.l+pw*i/10,y=pad.t+ph*i/10;ctx.beginPath();ctx.moveTo(x,pad.t);ctx.lineTo(x,pad.t+ph);ctx.stroke();ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(pad.l+pw,y);ctx.stroke();}ctx.strokeStyle='#333';ctx.lineWidth=2;ctx.strokeRect(pad.l,pad.t,pw,ph);
+  if(points.length){ctx.strokeStyle=opts.ideal?'#e53935':(opts.hand==='Left'?'#0077cc':'#00995e');ctx.lineWidth=opts.ideal?4:2.5;ctx.beginPath();const first=xy(points[0]);ctx.moveTo(first.x,first.y);for(let i=1;i<points.length;i++){const q=xy(points[i]);ctx.lineTo(q.x,q.y);}ctx.stroke();
+    if(opts.ideal){for(const p of points){const q=xy(p);ctx.fillStyle='#e53935';ctx.beginPath();ctx.arc(q.x,q.y,5,0,Math.PI*2);ctx.fill();}}
+    else {ctx.fillStyle=opts.hand==='Left'?'#0077cc':'#00995e';for(let i=0;i<points.length;i+=Math.max(1,Math.floor(points.length/150))){const q=xy(points[i]);ctx.beginPath();ctx.arc(q.x,q.y,2.5,0,Math.PI*2);ctx.fill();}}
+  }else{ctx.fillStyle='#555';ctx.font='16px sans-serif';ctx.textAlign='center';ctx.fillText(opts.ideal?'この側のターゲットなし':'実測データなし',pad.l+pw/2,pad.t+ph/2);}
+}
+function renderTrajectoryPlots(){
+  const targetMap=new Map(pcTargetHistory.map(t=>[Number(t.id),t]));
+  // Prefer target centers saved with successful hits; use the streamed history for the last/unhit target too.
+  for(const r of pcRecords){if(!targetMap.has(Number(r.targetId)))targetMap.set(Number(r.targetId),{id:Number(r.targetId),x:Number(r.targetX),y:Number(r.targetY)});}
+  const allTargets=[...targetMap.values()].filter(t=>Number.isFinite(t.x)&&Number.isFinite(t.y)).sort((a,b)=>a.id-b.id);
+  const leftTargets=allTargets.filter(t=>t.x<0.5),rightTargets=allTargets.filter(t=>t.x>=0.5);
+  const targetSide=new Map(allTargets.map(t=>[Number(t.id),t.x<0.5?'left':'right']));
+  const usable=pcThumbSamples.filter(p=>p.calibrated && Number.isFinite(Number(p.mappedX)) && Number.isFinite(Number(p.mappedY)) && targetSide.has(Number(p.targetId)));
+  const leftActual=usable.filter(p=>targetSide.get(Number(p.targetId))==='left' && /^left$/i.test(String(p.hand))).map(p=>({x:Number(p.mappedX),y:Number(p.mappedY),time:p.time}));
+  const rightActual=usable.filter(p=>targetSide.get(Number(p.targetId))==='right' && /^right$/i.test(String(p.hand))).map(p=>({x:Number(p.mappedX),y:Number(p.mappedY),time:p.time}));
+  drawTrajectoryPlot('plotIdealLeft',leftTargets,{ideal:true,leftHalf:true});
+  drawTrajectoryPlot('plotActualLeft',leftActual,{hand:'Left',leftHalf:true});
+  drawTrajectoryPlot('plotIdealRight',rightTargets,{ideal:true,rightHalf:true});
+  drawTrajectoryPlot('plotActualRight',rightActual,{hand:'Right',rightHalf:true});
+  $('trajectoryResults').classList.remove('hidden');
+  $('trajectoryNote').textContent=`ターゲット：左 ${leftTargets.length} 個／右 ${rightTargets.length} 個。キャリブレーション済み実測点：左手 ${leftActual.length} 点／右手 ${rightActual.length} 点。実測点が0の場合は、PCカメラで両手が認識されているか、キャリブレーションが完了しているか確認してください。`;
+  $('trajectoryResults').scrollIntoView({behavior:'smooth',block:'start'});
+}
+function savePlot(canvasId){const canvas=$(canvasId);const a=document.createElement('a');a.download=canvasId+'.png';a.href=canvas.toDataURL('image/png');document.body.appendChild(a);a.click();a.remove();}
+document.querySelectorAll('[data-save-plot]').forEach(b=>b.addEventListener('click',()=>savePlot(b.dataset.savePlot)));
+$('saveAllPlots').addEventListener('click',()=>{['plotIdealLeft','plotActualLeft','plotIdealRight','plotActualRight'].forEach((id,i)=>setTimeout(()=>savePlot(id),i*350));});
+
+async function setupPcCamera(){
+  try{
+    if(!navigator.mediaDevices?.getUserMedia) throw new Error('getUserMedia unavailable');
+    pcCameraStatus.textContent='カメラへのアクセスを許可してください…';
+
+    // まず権限を取得。これでカメラ名(device label)も取得できるようになる。
+    let temp=await navigator.mediaDevices.getUserMedia({video:true,audio:false});
+    temp.getTracks().forEach(t=>t.stop());
+    await refreshPcCameraList();
+
+    // 選択された外付けカメラを明示的に使用する。facingModeだけに任せない。
+    let deviceId=pcCameraSelect.value;
+    if(!deviceId || deviceId==='__none__'){
+      const devices=await navigator.mediaDevices.enumerateDevices();
+      const cams=devices.filter(d=>d.kind==='videoinput');
+      deviceId=cams.length?cams[cams.length-1].deviceId:'';
+    }
+    await startPcCamera(deviceId);
+
+    const { FilesetResolver, HandLandmarker } = await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.21');
+    pcCameraStatus.textContent='MediaPipeモデルを読み込んでいます…';
+    const vision=await FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.21/wasm');
+
+    // GPUが使えないPCでも動くよう、GPU→CPUの順にフォールバック。
+    try{
+      pcHandLandmarker=await HandLandmarker.createFromOptions(vision,{baseOptions:{modelAssetPath:MODEL_URL,delegate:'GPU'},runningMode:'VIDEO',numHands:2,minHandDetectionConfidence:.35,minHandPresenceConfidence:.35,minTrackingConfidence:.35});
+      pcCameraStatus.textContent='MediaPipe GPU準備完了・手を映してください';
+    }catch(gpuError){
+      console.warn('MediaPipe GPU failed; fallback to CPU',gpuError);
+      pcHandLandmarker=await HandLandmarker.createFromOptions(vision,{baseOptions:{modelAssetPath:MODEL_URL,delegate:'CPU'},runningMode:'VIDEO',numHands:2,minHandDetectionConfidence:.35,minHandPresenceConfidence:.35,minTrackingConfidence:.35});
+      pcCameraStatus.textContent='MediaPipe CPU準備完了・手を映してください';
+    }
+    pcTracking=true; pcLastVideoTime=-1; pcTrackLoop();
+  }catch(e){
+    console.error(e);
+    pcCameraStatus.textContent='起動失敗：'+(e?.message||e)+'（カメラ許可・HTTPS・外付けカメラを確認）';
+  }
+}
+
+async function refreshPcCameraList(){
+  const devices=await navigator.mediaDevices.enumerateDevices();
+  const cams=devices.filter(d=>d.kind==='videoinput');
+  pcCameraSelect.innerHTML='';
+  cams.forEach((d,i)=>{
+    const o=document.createElement('option');
+    o.value=d.deviceId;
+    o.textContent=d.label || ('カメラ '+(i+1));
+    pcCameraSelect.appendChild(o);
+  });
+  if(!cams.length){
+    const o=document.createElement('option');o.value='__none__';o.textContent='カメラが見つかりません';pcCameraSelect.appendChild(o);
+  }
+}
+
+async function startPcCamera(deviceId){
+  if(pcMediaStream) pcMediaStream.getTracks().forEach(t=>t.stop());
+  const constraints=deviceId ? {video:{deviceId:{exact:deviceId},width:{ideal:1280},height:{ideal:720},frameRate:{ideal:30,max:60}},audio:false}
+                         : {video:{width:{ideal:1280},height:{ideal:720},frameRate:{ideal:30,max:60}},audio:false};
+  pcMediaStream=await navigator.mediaDevices.getUserMedia(constraints);
+  pcCamera.srcObject=pcMediaStream;
+  await pcCamera.play();
+  pcCameraStatus.textContent='外付けカメラ接続済み・映像取得中';
+}
+
+pcCameraSelect.addEventListener('change',async()=>{
+  if(!pcCameraSelect.value)return;
+  try{
+    await startPcCamera(pcCameraSelect.value);
+    pcLastVideoTime=-1;
+    pcCameraStatus.textContent=pcHandLandmarker?'カメラ変更済み・手を映してください':'カメラ変更済み';
+  }catch(e){pcCameraStatus.textContent='カメラ変更失敗：'+(e?.message||e);}
+});
+
+function pcTrackLoop(){
+  if(!pcTracking)return;
+  if(pcCamera.readyState>=2&&pcCamera.currentTime!==pcLastVideoTime){
+    pcLastVideoTime=pcCamera.currentTime;
+    try{const r=pcHandLandmarker.detectForVideo(pcCamera,performance.now());processPcHand(r)}catch(e){console.warn(e)}
+  }
+  requestAnimationFrame(pcTrackLoop);
+}
+const HAND_CONNECTIONS=[[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]];
+let pcPhoneCalibrationActive=false;
+let pcHandStates=[
+  {x:null,y:null,history:[],lastX:null,lastY:null},
+  {x:null,y:null,history:[],lastX:null,lastY:null}
+];
+function median(arr){return arr.slice().sort((a,b)=>a-b)[Math.floor(arr.length/2)]}
+function resetPcHandStates(){pcHandStates=[{x:null,y:null,history:[],lastX:null,lastY:null},{x:null,y:null,history:[],lastX:null,lastY:null}];}
+function handLabel(i,r){const h=r?.handednesses?.[i]?.[0];if(!h)return 'HAND '+(i+1);const label=h.displayName||h.categoryName||('HAND '+(i+1));/* MediaPipe handedness assumes mirrored selfie input; this PC camera feed is unmirrored. */if(label==='Left')return 'Right';if(label==='Right')return 'Left';return label;}
+function processPcHand(r){
+  const ctx=pcCameraCanvas.getContext('2d'),w=pcCamera.videoWidth||1280,h=pcCamera.videoHeight||720;
+  if(pcCameraCanvas.width!==w||pcCameraCanvas.height!==h){pcCameraCanvas.width=w;pcCameraCanvas.height=h;}
+  ctx.clearRect(0,0,w,h);
+  if(!r?.landmarks?.length){pcCameraStatus.textContent='手をカメラに映してください（両手を入れると両手同時追跡）';pcThumbCoord.textContent='両手の親指：検出できません　軌跡：'+pcPath.length+' points';resetPcHandStates();return;}
+  const seen=[];
+  for(let i=0;i<r.landmarks.length&&i<2;i++){
+    const lm=r.landmarks[i],st=pcHandStates[i],tip=lm[4],rawX=tip.x,rawY=tip.y;
+    let cx=rawX,cy=rawY;
+    if(st.x!==null){const jump=Math.hypot(rawX-st.x,rawY-st.y),palm=Math.max(.05,Math.hypot(lm[5].x-lm[0].x,lm[5].y-lm[0].y)),lim=Math.max(.055,Math.min(.18,palm*1.8));if(jump>lim){cx=st.x+(rawX-st.x)*(lim/jump);cy=st.y+(rawY-st.y)*(lim/jump);}}
+    st.history.push({x:cx,y:cy});if(st.history.length>5)st.history.shift();
+    const mx=median(st.history.map(p=>p.x)),my=median(st.history.map(p=>p.y)),a=.32;st.x=st.x===null?mx:st.x*(1-a)+mx*a;st.y=st.y===null?my:st.y*(1-a)+my*a;
+    const x=Math.max(0,Math.min(1,st.x)),y=Math.max(0,Math.min(1,st.y)),label=handLabel(i,r);seen.push({x,y,label});
+    if(i===0)pcLatestThumb={x,y,label};
+    if(pcTarget?.visible){const mapped=mapCameraToGame(x,y);pcThumbSamples.push({time:Date.now(),targetId:pcTarget.id,x,y,mappedX:mapped?.x??'',mappedY:mapped?.y??'',calibrated:!!mapped,hand:label});}
+    ctx.lineWidth=Math.max(2,w/500);ctx.strokeStyle=i===0?'rgba(0,230,118,.78)':'rgba(0,180,255,.78)';ctx.fillStyle=i===0?'rgba(0,230,118,.9)':'rgba(0,180,255,.9)';
+    for(const [a,b] of HAND_CONNECTIONS){ctx.beginPath();ctx.moveTo(lm[a].x*w,lm[a].y*h);ctx.lineTo(lm[b].x*w,lm[b].y*h);ctx.stroke();}
+    for(let j=0;j<lm.length;j++){ctx.beginPath();ctx.arc(lm[j].x*w,lm[j].y*h,j===4?11:5,0,Math.PI*2);ctx.fill();}
+    ctx.fillStyle=i===0?'#ff1744':'#ffea00';ctx.beginPath();ctx.arc(x*w,y*h,14,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#fff';ctx.lineWidth=3;ctx.stroke();
+    ctx.font='bold '+Math.max(14,w/100)+'px sans-serif';ctx.fillStyle='#fff';ctx.fillText((label==='Left'?'LEFT THUMB':label==='Right'?'RIGHT THUMB':label+' THUMB'),x*w+18,y*h-12);
+    if(st.lastX!==null){if(Math.hypot(x-st.lastX,y-st.lastY)<.14)pcPath.push({t:performance.now(),x,y,hand:i});}else pcPath.push({t:performance.now(),x,y,hand:i});
+    st.lastX=x;st.lastY=y;
+  }
+  if(pcPath.length>1000)pcPath.splice(0,pcPath.length-1000);
+  for(const hi of [0,1]){const recent=pcPath.filter(p=>p.hand===hi).slice(-120);if(recent.length){ctx.strokeStyle=hi===0?'#00ff66':'#00b7ff';ctx.lineWidth=Math.max(4,w/350);ctx.beginPath();ctx.moveTo(recent[0].x*w,recent[0].y*h);for(let j=1;j<recent.length;j++)ctx.lineTo(recent[j].x*w,recent[j].y*h);ctx.stroke();}}
+  pcCameraStatus.textContent=(seen.length===2?'両手を同時認識中':'1手を認識中')+'・親指追跡中';
+  pcThumbCoord.textContent=seen.map(p=>p.label+'親指 X '+p.x.toFixed(3)+' / Y '+p.y.toFixed(3)).join('　｜　')+'　軌跡：'+pcPath.length+' points';
+}
+async function setupCamera(){
+  try{
+    const { FilesetResolver, HandLandmarker } = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.21");
+    mediaStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:640},height:{ideal:480}},audio:false});
+    camera.srcObject=mediaStream; await camera.play();
+    const vision=await FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.21/wasm');
+    handLandmarker=await HandLandmarker.createFromOptions(vision,{baseOptions:{modelAssetPath:MODEL_URL},runningMode:'VIDEO',numHands:1,minHandDetectionConfidence:.5,minHandPresenceConfidence:.5,minTrackingConfidence:.5});
+    tracking=true;trackingStatus.textContent='MediaPipe準備完了';trackLoop();
+  }catch(e){trackingStatus.textContent='カメラ/MediaPipe開始失敗';console.error(e)}
+}
+function trackLoop(){
+  if(!tracking)return;
+  if(camera.readyState>=2&&camera.currentTime!==lastVideoTime){
+    lastVideoTime=camera.currentTime;
+    try{const r=handLandmarker.detectForVideo(camera,performance.now());processHand(r)}catch(e){console.warn(e)}
+  }
+  requestAnimationFrame(trackLoop);
+}
+function processHand(r){
+  if(!r?.landmarks?.length){trackingStatus.textContent='手をカメラに映してください';return}
+  const tip=r.landmarks[0][4];
+  const now=performance.now();
+  const x=1-tip.x,y=tip.y;
+  drawCameraPoint(x,y);
+  if(gameRunning&&now-lastPathSample>=45){
+    currentPath.push({t:+((now-spawnTime)/1000).toFixed(4),x:+x.toFixed(5),y:+y.toFixed(5)});
+    lastPathSample=now;
+    const sample=currentPath.slice(-24);send({type:'thumb',x,y,targetId,path:sample,count:currentPath.length});
+  }
+  lastThumb={x,y,t:now};
+}
+function drawCameraPoint(x,y){const w=camera.videoWidth||640,h=camera.videoHeight||480;cameraCanvas.width=w;cameraCanvas.height=h;const c=cameraCanvas.getContext('2d');c.clearRect(0,0,w,h);c.fillStyle='#00e676';c.beginPath();c.arc(x*w,y*h,8,0,Math.PI*2);c.fill()}
+
+function questionnaireSubmit(e){e.preventDefault();e.stopPropagation();const req=[['ageGroup','年齢'],['handedness','利き手'],['dailyGame','1日のゲーム時間'],['smartphoneGame','スマートフォンゲームのプレイ頻度'],['gameExperience','E-Sports・アクションゲーム経験']];for(const [id,n] of req){if(!$ (id).value){$('questionError').textContent='「'+n+'」を選択してください。';return}}qData={ageGroup:$('ageGroup').value,handedness:$('handedness').value,dailyGameTime:$('dailyGame').value,smartphoneGameFrequency:$('smartphoneGame').value,gameExperience:$('gameExperience').value,favoriteGame:$('favoriteGame').value.trim()||'未回答'};questionnaire.style.display='none';startCard.classList.remove('hidden');}
+qButton.addEventListener('pointerdown',questionnaireSubmit);
+
+function generateTarget(){const r=game.getBoundingClientRect(),margin=48;const x=margin+Math.random()*Math.max(1,r.width-margin*2),y=margin+Math.random()*Math.max(1,r.height-margin*2);target.style.left=x+'px';target.style.top=y+'px';target.style.display='block';targetId++;currentPath=[];lastPathSample=0;spawnTime=performance.now();send({type:'state',time:Math.max(0,Math.ceil(GAME_DURATION-(spawnTime-startTime)/1000)),score,reaction:avg(),level:level(),targetVisible:true,target:{id:targetId,x:x/r.width,y:y/r.height}});}
+function startGame(){score=0;reactionTimes=[];records=[];tapAttempts=0;missTaps=0;tapLog=[];previousTargetCenter=null;startTime=performance.now();gameRunning=true;send({type:'experimentStart',questionnaire:qData,startedAt:new Date().toISOString()});startCard.classList.add('hidden');resultCard.classList.add('hidden');if($('codeBox')) $('codeBox').style.display='none'; if($('startCodeBox')) $('startCodeBox').style.display='none';ui();send({type:'event',text:'GAME START'});generateTarget();clearInterval(timerId);timerId=setInterval(()=>{ui();send({type:'state',time:$('time').textContent,score,reaction:avg(),level:level(),targetVisible:gameRunning,target:{id:targetId,x:parseFloat(target.style.left)/game.clientWidth,y:parseFloat(target.style.top)/game.clientHeight}});if(performance.now()-startTime>=GAME_DURATION*1000)endGame()},50)}
+function hitTarget(){
+  if(!gameRunning || target.style.display==='none')return;
+  const tap=performance.now(),reaction=(tap-spawnTime)/1000;
+  reactionTimes.push(reaction);score++;
+  const r=game.getBoundingClientRect(),tx=parseFloat(target.style.left),ty=parseFloat(target.style.top);
+  const center={x:tx/r.width,y:ty/r.height};
+  const targetDistance=previousTargetCenter?Math.hypot(center.x-previousTargetCenter.x,center.y-previousTargetCenter.y):null;
+  const record={targetId,reactionTime:reaction,targetX:center.x,targetY:center.y,targetDistance,previousTargetX:previousTargetCenter?.x??null,previousTargetY:previousTargetCenter?.y??null,path:currentPath.slice(),pathPointCount:currentPath.length,tapResult:'SUCCESS'};
+  records.push(record);previousTargetCenter=center;
+  tapLog.push({time:+((tap-startTime)/1000).toFixed(4),targetId,result:'SUCCESS',x:center.x,y:center.y});
+  send({type:'event',text:'TARGET #'+targetId+' HIT / reaction '+reaction.toFixed(3)+'s',record});
+  send({type:'tapStats',attempts:tapAttempts,success:score,miss:missTaps,accuracy:tapAttempts?score/tapAttempts:0});
+  target.classList.add('hit');setTimeout(()=>target.classList.remove('hit'),70);
+  ui();generateTarget();
+}
+function checkTap(e){
+  if(!gameRunning || target.style.display==='none')return;
+  if(e.cancelable)e.preventDefault();
+  e.stopPropagation();
+  const now=performance.now();
+  if(now-lastTapTime<120)return;
+  lastTapTime=now;tapAttempts++;
+  const p=e, r=target.getBoundingClientRect();
+  const inside=p.clientX>=r.left&&p.clientX<=r.right&&p.clientY>=r.top&&p.clientY<=r.bottom;
+  if(inside){
+    hitTarget();
+  }else{
+    missTaps++;
+    tapLog.push({time:+((now-startTime)/1000).toFixed(4),targetId,result:'MISS',x:+((p.clientX-game.getBoundingClientRect().left)/game.clientWidth).toFixed(5),y:+((p.clientY-game.getBoundingClientRect().top)/game.clientHeight).toFixed(5)});
+    send({type:'event',text:'TAP MISS / target #'+targetId});
+    send({type:'tapStats',attempts:tapAttempts,success:score,miss:missTaps,accuracy:tapAttempts?score/tapAttempts:0});
+    ui();
+  }
+}
+game.addEventListener('pointerdown',checkTap);
+startButton.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();beginPhoneCalibration()});
+$('phoneCalBegin').addEventListener('click',beginPhoneCalibration);
+$('phoneCalCancel').addEventListener('click',()=>{ $('phoneCalibration').classList.add('hidden');startCard.classList.remove('hidden');});
+$('phoneCalTarget').addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();phoneCalibrationTap(e)});
+
+function beginPhoneCalibration(){
+  startCard.classList.add('hidden');
+  $('phoneCalibration').classList.remove('hidden');
+  phoneCalIndex=0;phoneCalWaiting=false;phoneCalDone=false;
+  $('phoneCalBegin').classList.add('hidden');
+  $('phoneCalCancel').textContent='中止';
+  $('phoneCalTitle').textContent='親指位置のキャリブレーション';
+  resetCalibration();
+  send({type:'phoneCalibrationReady',index:0});
+  showPhoneCalTarget();
+}
+function showPhoneCalTarget(){
+  const t=phoneCalTargets[phoneCalIndex];
+  if(!t)return;
+  $('phoneCalInstruction').textContent=`${t.label}の点滅する範囲に、スマホを操作する親指を合わせてタップしてください。`;
+  $('phoneCalProgress').textContent=`測定 ${phoneCalIndex+1} / ${phoneCalTargets.length}`;
+  $('phoneCalTarget').style.left=(t.x*100)+'%';
+  $('phoneCalTarget').style.top=(t.y*100)+'%';
+  $('phoneCalStatus').textContent='親指の位置を合わせたら、PC側の「記録 '+(phoneCalIndex+1)+'」を押してください。';
+  phoneCalWaiting=true;
+}
+function phoneCalibrationTap(e){
+  if(phoneCalIndex<0||phoneCalDone||phoneCalWaiting)return;
+  $('phoneCalStatus').textContent='スマホの位置を合わせたら、PC側の「記録 '+(phoneCalIndex+1)+'」を押してください。';
+}
+
+function finishPhoneCalibration(){
+  phoneCalDone=true;phoneCalIndex=-1;
+  // 文字や完了ボタンは出さず、キャリブレーション直後にゲームへ移行する
+  $('phoneCalibration').classList.add('hidden');
+  $('phoneCalTarget').style.display='flex';
+  startGame();
+}
+
+restartButton.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();resultCard.classList.add('hidden');startCard.classList.remove('hidden')});
+
+function endGame(){if(!gameRunning)return;gameRunning=false;clearInterval(timerId);target.style.display='none';$('time').textContent='0';$('finalScore').textContent=score;$('finalAvg').textContent=avg().toFixed(2)+'s';$('finalAccuracy').textContent=(tapAttempts?score/tapAttempts*100:0).toFixed(1)+'%';$('finalTapDetail').textContent='成功 '+score+' / タップ '+tapAttempts+' / ミス '+missTaps;$('finalLevel').textContent=level();resultCard.classList.remove('hidden');send({type:'event',text:'GAME END'});send({type:'state',time:0,score,reaction:avg(),level:level(),targetVisible:false,target:{id:targetId,x:0,y:0}});}
+function pcCsvEscape(v){return '"'+String(v??'').replace(/"/g,'""')+'"'}
+function downloadData(){const rows=[['experiment','value'],['age',qData.ageGroup],['handedness',qData.handedness],['daily_game_time',qData.dailyGameTime],['smartphone_game_frequency',qData.smartphoneGameFrequency],['game_experience',qData.gameExperience],['favorite_game',qData.favoriteGame],['total_score',score],['average_reaction_sec',avg().toFixed(4)],['tap_attempts',tapAttempts],['successful_taps',score],['miss_taps',missTaps],['tap_success_rate_percent',(tapAttempts?score/tapAttempts*100:0).toFixed(2)],['level',level()]];rows.push([]);rows.push(['target_id','reaction_time_sec','target_x','target_y','path_point_count','path_json']);for(const r of records)rows.push([r.targetId,r.reactionTime.toFixed(4),r.targetX.toFixed(5),r.targetY.toFixed(5),r.pathPointCount,JSON.stringify(r.path)]);rows.push([]);rows.push(['tap_time_sec','target_id','tap_result','tap_x_game_norm','tap_y_game_norm']);for(const t of tapLog)rows.push([t.time,t.targetId,t.result,t.x,t.y]);const csv='\uFEFF'+rows.map(x=>x.map(csvEscape).join(',')).join('\r\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));a.download='reflex_media_experiment_data.csv';document.body.appendChild(a);a.click();a.remove()}
+downloadButton.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();downloadData()});
+
+$('monitorPanel').classList.add('hidden');
+$('top').classList.add('hidden');
+$('game').classList.add('hidden');
+$('hint').classList.add('hidden');
+</script>
+</body>
+</html>
